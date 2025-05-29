@@ -1,0 +1,56 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: manual-template
+spec:
+  params:
+    - name: WORKSPACE_ID
+      description: The workspace id
+    - name: ibmcloud-api
+      description: the ibmcloud api
+      default: https://cloud.ibm.com
+    - name: apikey
+      description: the ibmcloud api key
+    - name: enable-automatic-plan-apply
+      description: if true, a plan and apply will be automatically executed upon changes to the template code
+      default: "true"
+  resourcetemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: pipelinerun-$(uid)-pvc
+      spec:
+        resources:
+          requests:
+            storage: 5Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteOnce
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: cd-secret
+      type: Opaque
+      stringData:
+        API_KEY: $(params.apikey)
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: pipelinerun-$(uid)
+      spec:
+        pipelineRef:
+          name: deploy-pipeline
+        workspaces:
+          - name: artifacts
+            persistentVolumeClaim:
+              claimName: pipelinerun-$(uid)-pvc
+        params:
+          - name: WORKSPACE_ID
+            value: $(params.WORKSPACE_ID)
+          - name: ibmcloud-api
+            value: $(params.ibmcloud-api)
+          - name: apikey
+            value: $(params.apikey)
+          - name: enable-automatic-plan-apply
+            value: $(params.enable-automatic-plan-apply)

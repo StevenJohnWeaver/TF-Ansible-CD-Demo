@@ -40,7 +40,7 @@ spec:
         name: pipelinerun-$(uid)
       spec:
         pipelineRef:
-          name: deploy-pipeline
+          name: ibm-cloud-web-app-pipeline
         workspaces:
           - name: artifacts
             persistentVolumeClaim:

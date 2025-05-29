@@ -1,0 +1,53 @@
+---
+- name: Deploy Web Application
+  hosts: all
+  become: yes # Run tasks with sudo/root privileges
+
+  vars:
+    app_dir: /opt/webapp
+    app_port: 8080
+
+  tasks:
+    - name: Update apt cache (Ubuntu)
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install Node.js and npm (for Node.js app)
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - nodejs
+        - npm
+      when: ansible_os_family == "Debian"
+
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy web application code
+      copy:
+        src: ./app_code/
+        dest: "{{ app_dir }}"
+
+    - name: Install Node.js dependencies
+      community.general.npm:
+        path: "{{ app_dir }}"
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Start web application
+      shell: "nohup npm start > {{ app_dir }}/app.log 2>&1 &" # Or use systemd service
+      args:
+        chdir: "{{ app_dir }}"
+      register: app_start_result
+
+    - name: Ensure web app is running (optional health check)
+      uri:
+        url: "http://{{ ansible_host }}:{{ app_port }}"
+        status_code: 200
+      delegate_to: localhost # Run this check from the Ansible controller
+      run_once: true

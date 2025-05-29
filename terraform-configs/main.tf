@@ -50,9 +50,10 @@ resource "ibm_is_network_acl" "web_app_acl" {
     direction   = "inbound"
     source      = "0.0.0.0/0" # Allow from anywhere (for demo, be more restrictive in prod)
     destination = "0.0.0.0/0"
-    protocol    = "tcp"
-    port_min    = 22 # Allow SSH access
-    port_max    = 22
+    tcp {
+      port_min    = 22
+      port_max    = 22
+    }
   }
   rules {
     name        = "allow-http-inbound"
@@ -60,9 +61,10 @@ resource "ibm_is_network_acl" "web_app_acl" {
     direction   = "inbound"
     source      = "0.0.0.0/0"
     destination = "0.0.0.0/0"
-    protocol    = "tcp"
-    port_min    = 80 # Allow HTTP access (if your app listens on 80)
-    port_max    = 80
+    tcp {
+      port_min    = 80 # Allow HTTP access (if your app listens on 80)
+      port_max    = 80
+    }
   }
   rules {
     name        = "allow-app-port-inbound"
@@ -70,9 +72,10 @@ resource "ibm_is_network_acl" "web_app_acl" {
     direction   = "inbound"
     source      = "0.0.0.0/0"
     destination = "0.0.0.0/0"
-    protocol    = "tcp"
-    port_min    = 8080 # Allow your specific app port (e.g., Node.js app)
-    port_max    = 8080
+    tcp {
+      port_min    = 8080 # Allow your specific app port (e.g., Node.js app)
+      port_max    = 8080
+    }
   }
   # Add outbound rules if your app needs to connect to specific external services
   rules {

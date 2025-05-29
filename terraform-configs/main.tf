@@ -84,7 +84,7 @@ resource "ibm_is_network_acl" "web_app_acl" {
     direction   = "outbound"
     source      = "0.0.0.0/0"
     destination = "0.0.0.0/0"
-    protocol    = "all"
+  #  protocol    = "all"
   }
 }
 

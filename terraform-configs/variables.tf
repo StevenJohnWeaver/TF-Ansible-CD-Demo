@@ -21,5 +21,5 @@ variable "resource_group_name" {
   description = "The name of the IBM Cloud resource group to deploy resources into."
   type        = string
   # You can uncomment and set a default if you want, or leave it for runtime input
-  # default     = "Default"
+  default     = "Default"
 }

@@ -227,7 +227,7 @@ spec:
               fi
 
               # Final check for successful application
-              if [ "$RUN_STATUS" != "applied" ]; then
+              if [ "$RUN_STATUS" != "applied" ] || [ "$RUN_STATUS" = "planned_and_finished" ]; then
                 echo "HCP Terraform run failed or was not applied successfully. Exiting."
                 exit 1
               fi

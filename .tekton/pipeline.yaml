@@ -55,165 +55,170 @@ spec:
     # 2. Task to provision infrastructure via HCP Terraform
     - name: provision-infrastructure
       runAfter: ["clone-repository"] # This task runs after the repository is cloned
-      workspaces:
-        - name: source
-          workspace: pipeline-workspace # Access the cloned repository
-      params:
-        - name: hcp-tfe-token
-          value: $(params.hcp-tfe-token)
-        - name: hcp-org-name
-          value: $(params.hcp-org-name)
-        - name: hcp-workspace-name
-          value: $(params.hcp-workspace-name)
-      steps:
-        # Step to install necessary tools (jq, curl)
-        - name: install-deps
-          image: ubuntu:latest # Use a base image where apt is available
-          script: |
-            set -eu
-            echo "Updating apt cache and installing curl, jq..."
-            apt-get update && apt-get install -y curl jq
+      taskSpec: # <--- ADD THIS LINE
+        workspaces:
+          - name: source # Name for this task's workspace mount
+        params:
+          - name: hcp-tfe-token
+            type: string
+            secret: true
+          - name: hcp-org-name
+            type: string
+          - name: hcp-workspace-name
+            type: string
+        steps:
+          # Step to install necessary tools (jq, curl)
+          - name: install-deps
+            image: ubuntu:latest
+            script: |
+              set -eu
+              echo "Updating apt cache and installing curl, jq..."
+              apt-get update && apt-get install -y curl jq
 
-        # Step to trigger HCP Terraform run and retrieve output
-        - name: trigger-hcp-run
-          image: ubuntu:latest # Using ubuntu for consistency; it has bash shell
-          script: |
-            set -eu # Exit immediately if a command exits with a non-zero status or undefined variable is used
+          # Step to trigger HCP Terraform run and retrieve output
+          - name: trigger-hcp-run
+            image: ubuntu:latest # Using ubuntu for consistency; it has bash shell
+            script: |
+              set -eu # Exit immediately if a command exits with a non-zero status or undefined variable is used
 
-            # Parameters from pipeline
-            HCP_TFE_TOKEN="$(params.hcp-tfe-token)"
-            HCP_ORG_NAME="$(params.hcp-org-name)"
-            HCP_WORKSPACE_NAME="$(params.hcp-workspace-name)"
-            
-            # Path to your Terraform configurations within the cloned repository
-            TERRAFORM_CONFIGS_DIR="$(workspaces.source.path)/terraform-configs"
-            
-            echo "Navigating to Terraform configuration directory: ${TERRAFORM_CONFIGS_DIR}"
-            cd "${TERRAFORM_CONFIGS_DIR}"
+              # Parameters from task
+              HCP_TFE_TOKEN="$(params.hcp-tfe-token)"
+              HCP_ORG_NAME="$(params.hcp-org-name)"
+              HCP_WORKSPACE_NAME="$(params.hcp-workspace-name)"
+              
+              # Path to your Terraform configurations within the cloned repository
+              TERRAFORM_CONFIGS_DIR="$(workspaces.source.path)/terraform-configs"
+              
+              echo "Navigating to Terraform configuration directory: ${TERRAFORM_CONFIGS_DIR}"
+              cd "${TERRAFORM_CONFIGS_DIR}"
 
-            echo "Retrieving HCP Terraform Workspace ID for ${HCP_WORKSPACE_NAME}..."
-            HCP_WORKSPACE_ID=$(curl -s \
-              --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
-              --header "Content-Type: application/vnd.api+json" \
-              "https://app.terraform.io/api/v2/organizations/${HCP_ORG_NAME}/workspaces?filter[name]=${HCP_WORKSPACE_NAME}" | \
-              jq -r '.data[0].id')
-
-            if [ -z "$HCP_WORKSPACE_ID" ] || [ "$HCP_WORKSPACE_ID" == "null" ]; then
-              echo "Error: Could not find HCP Terraform workspace ID for ${HCP_WORKSPACE_NAME}."
-              exit 1
-            fi
-            echo "HCP Terraform Workspace ID: ${HCP_WORKSPACE_ID}"
-
-            echo "Triggering new run in HCP Terraform..."
-            RUN_RESPONSE=$(curl -s -X POST \
-              --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
-              --header "Content-Type: application/vnd.api+json" \
-              --data-binary @- "https://app.terraform.io/api/v2/runs" <<EOF
-            {
-              "data": {
-                "attributes": {
-                  "is-destroy": false,
-                  "message": "Triggered by IBM Cloud CD Tekton pipeline"
-                },
-                "relationships": {
-                  "workspace": {
-                    "data": {
-                      "type": "workspaces",
-                      "id": "${HCP_WORKSPACE_ID}"
-                    }
-                  }
-                },
-                "type": "runs"
-              }
-            }
-            EOF
-            )
-
-            RUN_ID=$(echo "$RUN_RESPONSE" | jq -r '.data.id')
-            echo "HCP Terraform Run ID: ${RUN_ID}"
-
-            if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
-              echo "Error: Failed to trigger HCP Terraform run."
-              echo "Response: $RUN_RESPONSE"
-              exit 1
-            fi
-
-            echo "Polling HCP Terraform run status. View run at: https://app.terraform.io/app/${HCP_ORG_NAME}/workspaces/${HCP_WORKSPACE_NAME}/runs/${RUN_ID}"
-            RUN_STATUS=""
-            while [[ "$RUN_STATUS" != "applied" && "$RUN_STATUS" != "errored" && "$RUN_STATUS" != "canceled" && "$RUN_STATUS" != "discarded" ]]; do
-              echo "Current status: ${RUN_STATUS}. Waiting 15 seconds..."
-              sleep 15
-              RUN_STATUS=$(curl -s \
+              echo "Retrieving HCP Terraform Workspace ID for ${HCP_WORKSPACE_NAME}..."
+              HCP_WORKSPACE_ID=$(curl -s \
                 --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
-                "https://app.terraform.io/api/v2/runs/${RUN_ID}" | jq -r '.data.attributes.status')
-            done
+                --header "Content-Type: application/vnd.api+json" \
+                "https://app.terraform.io/api/v2/organizations/${HCP_ORG_NAME}/workspaces?filter[name]=${HCP_WORKSPACE_NAME}" | \
+                jq -r '.data[0].id')
 
-            echo "HCP Terraform run completed with status: ${RUN_STATUS}"
+              if [ -z "$HCP_WORKSPACE_ID" ] || [ "$HCP_WORKSPACE_ID" == "null" ]; then
+                echo "Error: Could not find HCP Terraform workspace ID for ${HCP_WORKSPACE_NAME}."
+                exit 1
+              fi
+              echo "HCP Terraform Workspace ID: ${HCP_WORKSPACE_ID}"
 
-            if [[ "$RUN_STATUS" != "applied" ]]; then
-              echo "HCP Terraform run failed or was not applied successfully. Exiting."
-              exit 1
-            fi
+              echo "Triggering new run in HCP Terraform..."
+              RUN_RESPONSE=$(curl -s -X POST \
+                --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
+                --header "Content-Type: application/vnd.api+json" \
+                --data-binary @- "https://app.terraform.io/api/v2/runs" <<EOF
+              {
+                "data": {
+                  "attributes": {
+                    "is-destroy": false,
+                    "message": "Triggered by IBM Cloud CD Tekton pipeline"
+                  },
+                  "relationships": {
+                    "workspace": {
+                      "data": {
+                        "type": "workspaces",
+                        "id": "${HCP_WORKSPACE_ID}"
+                      }
+                    }
+                  },
+                  "type": "runs"
+                }
+              }
+              EOF
+              )
 
-            echo "Retrieving Terraform outputs..."
-            TF_OUTPUTS=$(curl -s \
-              --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
-              "https://app.terraform.io/api/v2/workspaces/${HCP_WORKSPACE_ID}/outputs" | jq -r '.')
+              RUN_ID=$(echo "$RUN_RESPONSE" | jq -r '.data.id')
+              echo "HCP Terraform Run ID: ${RUN_ID}"
 
-            WEB_SERVER_IP=$(echo "$TF_OUTPUTS" | jq -r '.data[] | select(.attributes.name=="web_server_ip") | .attributes.value')
+              if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
+                echo "Error: Failed to trigger HCP Terraform run."
+                echo "Response: $RUN_RESPONSE"
+                exit 1
+              fi
 
-            if [ -z "$WEB_SERVER_IP" ] || [ "$WEB_SERVER_IP" == "null" ]; then
-              echo "Error: Could not retrieve web_server_ip from HCP Terraform outputs."
-              exit 1
-            fi
+              echo "Polling HCP Terraform run status. View run at: https://app.terraform.io/app/${HCP_ORG_NAME}/workspaces/${HCP_WORKSPACE_NAME}/runs/${RUN_ID}"
+              RUN_STATUS=""
+              while [[ "$RUN_STATUS" != "applied" && "$RUN_STATUS" != "errored" && "$RUN_STATUS" != "canceled" && "$RUN_STATUS" != "discarded" ]]; do
+                echo "Current status: ${RUN_STATUS}. Waiting 15 seconds..."
+                sleep 15
+                RUN_STATUS=$(curl -s \
+                  --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
+                  "https://app.terraform.io/api/v2/runs/${RUN_ID}" | jq -r '.data.attributes.status')
+              done
 
-            echo "Web Server IP: ${WEB_SERVER_IP}"
-            # Write the IP to a file in the shared workspace for the next task
-            echo "WEB_SERVER_IP=${WEB_SERVER_IP}" > $(workspaces.source.path)/web_server_ip.env
+              echo "HCP Terraform run completed with status: ${RUN_STATUS}"
 
+              if [[ "$RUN_STATUS" != "applied" ]]; then
+                echo "HCP Terraform run failed or was not applied successfully. Exiting."
+                exit 1
+              fi
+
+              echo "Retrieving Terraform outputs..."
+              TF_OUTPUTS=$(curl -s \
+                --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
+                "https://app.terraform.io/api/v2/workspaces/${HCP_WORKSPACE_ID}/outputs" | jq -r '.')
+
+              WEB_SERVER_IP=$(echo "$TF_OUTPUTS" | jq -r '.data[] | select(.attributes.name=="web_server_ip") | .attributes.value')
+
+              if [ -z "$WEB_SERVER_IP" ] || [ "$WEB_SERVER_IP" == "null" ]; then
+                echo "Error: Could not retrieve web_server_ip from HCP Terraform outputs."
+                exit 1
+              fi
+
+              echo "Web Server IP: ${WEB_SERVER_IP}"
+              # Write the IP to a file in the shared workspace for the next task
+              echo "WEB_SERVER_IP=${WEB_SERVER_IP}" > "$(workspaces.source.path)/web_server_ip.env"
+      # --- END: New taskSpec block ---
+      
     # 3. Task to deploy application with Ansible
     - name: deploy-application
       runAfter: ["provision-infrastructure"] # This task runs after infrastructure is provisioned
-      workspaces:
-        - name: source
-          workspace: pipeline-workspace # Access cloned repo and the web_server_ip.env file
-      params:
-        - name: ssh-private-key
-          value: $(params.ssh-private-key)
-      steps:
-        # Step to install Ansible
-        - name: install-ansible
-          image: ubuntu:latest # Use an image where apt is available
-          script: |
-            set -eu
-            echo "Updating apt cache and installing Ansible, sshpass..."
-            apt-get update && apt-get install -y ansible sshpass
+      # --- START: New taskSpec block for inlined task definition ---
+      taskSpec: # <--- ADD THIS LINE
+        workspaces:
+          - name: source # Name for this task's workspace mount
+        params:
+          - name: ssh-private-key
+            type: string
+            secret: true
+        steps:
+          # Step to install Ansible
+          - name: install-ansible
+            image: ubuntu:latest # Use an image where apt is available
+            script: |
+              set -eu
+              echo "Updating apt cache and installing Ansible, sshpass..."
+              apt-get update && apt-get install -y ansible sshpass
 
-        # Step to run Ansible playbook
-        - name: run-ansible-playbook
-          image: ubuntu:latest # Use ubuntu for consistency or a specific ansible image
-          script: |
-            set -eu
+          # Step to run Ansible playbook
+          - name: run-ansible-playbook
+            image: ubuntu:latest # Use ubuntu for consistency or a specific ansible image
+            script: |
+              set -eu
 
-            ANSIBLE_PLAYBOOKS_DIR="$(workspaces.source.path)/ansible-playbooks"
-            
-            # Load the WEB_SERVER_IP from the file written by the previous task
-            source "$(workspaces.source.path)/web_server_ip.env"
-            echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"
+              ANSIBLE_PLAYBOOKS_DIR="$(workspaces.source.path)/ansible-playbooks"
+              
+              # Load the WEB_SERVER_IP from the file written by the previous task
+              source "$(workspaces.source.path)/web_server_ip.env"
+              echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"
 
-            # Create a dynamic Ansible inventory file
-            echo "[webservers]" > "${ANSIBLE_PLAYBOOKS_DIR}/inventory.ini"
-            # Note: For demo, using 'root' user. In production, use a dedicated user with sudo.
-            echo "${WEB_SERVER_IP} ansible_user=root ansible_ssh_private_key_file=${ANSIBLE_PLAYBOOKS_DIR}/ssh_key" >> "${ANSIBLE_PLAYBOOKS_DIR}/inventory.ini"
+              # Create a dynamic Ansible inventory file
+              echo "[webservers]" > "${ANSIBLE_PLAYBOOKS_DIR}/inventory.ini"
+              # Note: For demo, using 'root' user. In production, use a dedicated user with sudo.
+              echo "${WEB_SERVER_IP} ansible_user=root ansible_ssh_private_key_file=${ANSIBLE_PLAYBOOKS_DIR}/ssh_key" >> "${ANSIBLE_PLAYBOOKS_DIR}/inventory.ini"
 
-            # Write the SSH private key from the secret parameter to a file
-            # Ensure permissions are correct for SSH
-            echo "$(params.ssh-private-key)" > "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
-            chmod 600 "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
+              # Write the SSH private key from the secret parameter to a file
+              # Ensure permissions are correct for SSH
+              echo "$(params.ssh-private-key)" > "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
+              chmod 600 "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
 
-            echo "Navigating to Ansible playbooks directory: ${ANSIBLE_PLAYBOOKS_DIR}"
-            cd "${ANSIBLE_PLAYBOOKS_DIR}"
-            
-            echo "Running Ansible playbook..."
-            ansible-playbook -i inventory.ini playbook.yml
-            echo "Ansible playbook execution complete."
+              echo "Navigating to Ansible playbooks directory: ${ANSIBLE_PLAYBOOKS_DIR}"
+              cd "${ANSIBLE_PLAYBOOKS_DIR}"
+              
+              echo "Running Ansible playbook..."
+              ansible-playbook -i inventory.ini playbook.yml
+              echo "Ansible playbook execution complete."
+      # --- END: New taskSpec block ---

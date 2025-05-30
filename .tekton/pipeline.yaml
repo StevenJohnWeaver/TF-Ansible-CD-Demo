@@ -238,7 +238,7 @@ spec:
 
               echo "Retrieving Terraform outputs..."
               TF_OUTPUTS_RESPONSE=$(curl \
-                --header "Authorization Bearer ${HCP_TFE_TOKEN}" \
+                --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
                 "https://app.terraform.io/api/v2/workspaces/${HCP_WORKSPACE_ID}/outputs")
               
               echo "Raw Terraform Outputs Response:"

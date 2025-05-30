@@ -116,7 +116,7 @@ spec:
               cd "${TERRAFORM_CONFIGS_DIR}"
 
               echo "Retrieving HCP Terraform Workspace ID for ${HCP_WORKSPACE_NAME}..."
-              HCP_WORKSPACE_ID=$(curl -s \
+              HCP_WORKSPACE_ID=$(curl \
                 --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
                 --header "Content-Type: application/vnd.api+json" \
                 "https://app.terraform.io/api/v2/organizations/${HCP_ORG_NAME}/workspaces?filter[name]=${HCP_WORKSPACE_NAME}" | \
@@ -167,7 +167,7 @@ spec:
               while [[ "$RUN_STATUS" != "applied" && "$RUN_STATUS" != "errored" && "$RUN_STATUS" != "canceled" && "$RUN_STATUS" != "discarded" ]]; do
                 echo "Current status: ${RUN_STATUS}. Waiting 15 seconds..."
                 sleep 15
-                RUN_STATUS=$(curl -s \
+                RUN_STATUS=$(curl \
                   --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
                   "https://app.terraform.io/api/v2/runs/${RUN_ID}" | jq -r '.data.attributes.status')
               done
@@ -180,7 +180,7 @@ spec:
               fi
 
               echo "Retrieving Terraform outputs..."
-              TF_OUTPUTS=$(curl -s \
+              TF_OUTPUTS=$(curl \
                 --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
                 "https://app.terraform.io/api/v2/workspaces/${HCP_WORKSPACE_ID}/outputs" | jq -r '.')
 

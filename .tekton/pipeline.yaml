@@ -37,27 +37,25 @@ spec:
 
   # Define the tasks that make up your pipeline
   tasks:
-    # 1. Task to clone the Git repository
-    # This task uses the built-in 'git-clone' task often available in IBM Cloud CD Tekton environments.
-    # If not, you might need to define a custom task for git clone or inline the steps.
-  - name: clone-repository
-    taskSpec:
-      # NO task-specific params needed here, as we're directly using pipeline-level params
-      workspaces:
-        - name: output # The workspace where the repo will be cloned
-      steps:
-        - name: git-clone-step
-          image: alpine/git:latest
-          script: |
-            set -eu
-            # Directly use the pipeline-level parameters here
-            GIT_REPO_URL="$(params.git-repo-url)"
-            GIT_BRANCH="$(params.git-branch)"
+    # 1. Task to clone the Git repository (inlined, using pipeline params)
+    - name: clone-repository
+      taskSpec:
+        # NO task-specific params needed here, as we're directly using pipeline-level params
+        workspaces:
+          - name: output # The workspace where the repo will be cloned
+        steps:
+          - name: git-clone-step
+            image: alpine/git:latest
+            script: |
+              set -eu
+              # Directly use the pipeline-level parameters here
+              GIT_REPO_URL="$(params.git-repo-url)"
+              GIT_BRANCH="$(params.git-branch)"
 
-            echo "Cloning repository: ${GIT_REPO_URL} branch: ${GIT_BRANCH}"
-            git clone --depth=1 --branch="${GIT_BRANCH}" "${GIT_REPO_URL}" "$(workspaces.output.path)"
-            echo "Repository cloned successfully to $(workspaces.output.path)/"
-            ls -la "$(workspaces.output.path)"
+              echo "Cloning repository: ${GIT_REPO_URL} branch: ${GIT_BRANCH}"
+              git clone --depth=1 --branch="${GIT_BRANCH}" "${GIT_REPO_URL}" "$(workspaces.output.path)"
+              echo "Repository cloned successfully to $(workspaces.output.path)/"
+              ls -la "$(workspaces.output.path)"
 
     # 2. Task to provision infrastructure via HCP Terraform
     - name: provision-infrastructure

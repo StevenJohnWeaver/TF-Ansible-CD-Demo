@@ -229,7 +229,6 @@ spec:
               # Final check for successful application
               if [ "$RUN_STATUS" = "applied" ] || [ "$RUN_STATUS" = "planned_and_finished" ]; then
                 echo "HCP Terraform run completed successfully with status ${RUN_STATUS}"
-                exit 0 # Success!
               else
                 echo "HCP Terraform run completed with status ${RUN_STATUS}, which is not a successful outcome."
                 echo "Please check the run logs in HCP Terraform at https://app.terraform.io/app/${HCP_ORG_NAME}/workspaces/${HCP_WORKSPACE_NAME}/runs/${RUN_ID} for details."
@@ -255,6 +254,9 @@ spec:
 
               echo "Web Server IP ${WEB_SERVER_IP}"
               echo "WEB_SERVER_IP=${WEB_SERVER_IP}" > "$(workspaces.source.path)/web_server_ip.env"
+              
+              # Now exit successfully after all steps are complete
+              exit 0 # Success!
 
     # 3. Task to deploy application with Ansible
     - name: deploy-application

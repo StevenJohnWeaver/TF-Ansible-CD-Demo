@@ -14,6 +14,12 @@ spec:
       type: string
       description: The Git branch to clone.
       default: main
+    # --- NEW PARAMETER ---
+    - name: content-base-path
+      type: string
+      description: Base subdirectory within the cloned repository where 'terraform-configs' and 'ansible-playbooks' are located (e.g., "my-project/deploy"). Default is empty if they are in the repo root.
+      default: "" # Default to empty if the folders are directly in the repo root
+    # --- END NEW PARAMETER ---
     - name: hcp-tfe-token
       type: string
       description: HashiCorp Cloud Platform Terraform API Token.
@@ -56,19 +62,21 @@ spec:
     # 2. Task to provision infrastructure via HCP Terraform
     - name: provision-infrastructure
       runAfter: ["clone-repository"]
-      # --- START: MAPPING PIPELINE PARAMS TO TASK PARAMS ---
-      params: # <--- ADD THIS BLOCK! This maps pipeline params to taskSpec params
+      params:
         - name: hcp-tfe-token
-          value: $(params.hcp-tfe-token) # Take pipeline's 'hcp-tfe-token'
+          value: $(params.hcp-tfe-token)
         - name: hcp-org-name
-          value: $(params.hcp-org-name) # Take pipeline's 'hcp-org-name'
+          value: $(params.hcp-org-name)
         - name: hcp-workspace-name
-          value: $(params.hcp-workspace-name) # Take pipeline's 'hcp-workspace-name'
-      # --- END: MAPPING PIPELINE PARAMS TO TASK PARAMS ---
+          value: $(params.hcp-workspace-name)
+        # --- MAPPING NEW PARAMETER ---
+        - name: content-base-path # Map pipeline param to task param
+          value: $(params.content-base-path)
+        # --- END MAPPING NEW PARAMETER ---
       taskSpec:
         workspaces:
           - name: source
-        params: # These are the parameters that the inlined task (taskSpec) expects
+        params:
           - name: hcp-tfe-token
             type: string
             secret: true
@@ -76,6 +84,10 @@ spec:
             type: string
           - name: hcp-workspace-name
             type: string
+          # --- DECLARE NEW PARAMETER FOR TASK ---
+          - name: content-base-path
+            type: string
+          # --- END DECLARE NEW PARAMETER FOR TASK ---
         steps:
           - name: install-deps
             image: ubuntu:latest
@@ -93,7 +105,10 @@ spec:
               HCP_ORG_NAME="$(params.hcp-org-name)"
               HCP_WORKSPACE_NAME="$(params.hcp-workspace-name)"
               
-              TERRAFORM_CONFIGS_DIR="$(workspaces.source.path)/terraform-configs"
+              # --- USE NEW PARAMETER HERE ---
+              REPO_BASE_PATH="$(params.content-base-path)"
+              TERRAFORM_CONFIGS_DIR="$(workspaces.source.path)/${REPO_BASE_PATH}/terraform-configs"
+              # --- END USE NEW PARAMETER ---
               
               echo "Navigating to Terraform configuration directory: ${TERRAFORM_CONFIGS_DIR}"
               cd "${TERRAFORM_CONFIGS_DIR}"
@@ -180,18 +195,24 @@ spec:
     # 3. Task to deploy application with Ansible
     - name: deploy-application
       runAfter: ["provision-infrastructure"]
-      # --- START: MAPPING PIPELINE PARAMS TO TASK PARAMS ---
-      params: # <--- ADD THIS BLOCK! This maps pipeline params to taskSpec params
+      params:
         - name: ssh-private-key
-          value: $(params.ssh-private-key) # Take pipeline's 'ssh-private-key'
-      # --- END: MAPPING PIPELINE PARAMS TO TASK PARAMS ---
+          value: $(params.ssh-private-key)
+        # --- MAPPING NEW PARAMETER ---
+        - name: content-base-path # Map pipeline param to task param
+          value: $(params.content-base-path)
+        # --- END MAPPING NEW PARAMETER ---
       taskSpec:
         workspaces:
           - name: source
-        params: # These are the parameters that the inlined task (taskSpec) expects
+        params:
           - name: ssh-private-key
             type: string
             secret: true
+          # --- DECLARE NEW PARAMETER FOR TASK ---
+          - name: content-base-path
+            type: string
+          # --- END DECLARE NEW PARAMETER FOR TASK ---
         steps:
           - name: install-ansible
             image: ubuntu:latest
@@ -205,7 +226,10 @@ spec:
             script: |
               set -eu
 
-              ANSIBLE_PLAYBOOKS_DIR="$(workspaces.source.path)/ansible-playbooks"
+              # --- USE NEW PARAMETER HERE ---
+              REPO_BASE_PATH="$(params.content-base-path)"
+              ANSIBLE_PLAYBOOKS_DIR="$(workspaces.source.path)/${REPO_BASE_PATH}/ansible-playbooks"
+              # --- END USE NEW PARAMETER ---
               
               source "$(workspaces.source.path)/web_server_ip.env"
               echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"

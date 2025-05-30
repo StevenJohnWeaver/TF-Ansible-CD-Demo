@@ -238,7 +238,7 @@ spec:
 
               echo "Retrieving Terraform outputs..."
               TF_OUTPUTS_RESPONSE=$(curl \
-                --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
+                --header "Authorization Bearer ${HCP_TFE_TOKEN}" \
                 "https://app.terraform.io/api/v2/workspaces/${HCP_WORKSPACE_ID}/outputs")
               
               echo "Raw Terraform Outputs Response:"
@@ -249,11 +249,11 @@ spec:
               WEB_SERVER_IP=$(echo "$TF_OUTPUTS" | jq -r '.data[] | select(.attributes.name=="web_server_ip") | .attributes.value')
 
               if [ -z "$WEB_SERVER_IP" ] || [ "$WEB_SERVER_IP" = "null" ]; then
-                echo "Error: Could not retrieve web_server_ip from HCP Terraform outputs. Raw outputs: ${TF_OUTPUTS_RESPONSE}"
+                echo "Error Could not retrieve web_server_ip from HCP Terraform outputs. Raw outputs: ${TF_OUTPUTS_RESPONSE}"
                 exit 1
               fi
 
-              echo "Web Server IP: ${WEB_SERVER_IP}"
+              echo "Web Server IP ${WEB_SERVER_IP}"
               echo "WEB_SERVER_IP=${WEB_SERVER_IP}" > "$(workspaces.source.path)/web_server_ip.env"
 
     # 3. Task to deploy application with Ansible

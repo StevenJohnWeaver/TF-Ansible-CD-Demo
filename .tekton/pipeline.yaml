@@ -42,7 +42,7 @@ spec:
     # If not, you might need to define a custom task for git clone or inline the steps.
     - name: clone-repository
       taskRef:
-        name: git-clone # Assumes 'git-clone' task is available in the cluster/toolchain
+        name: git-clone-repo # Assumes 'git-clone' task is available in the cluster/toolchain
       params:
         - name: url
           value: $(params.git-repo-url)

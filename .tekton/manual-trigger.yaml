@@ -1,20 +1,37 @@
----
 apiVersion: tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
   name: manual-template
 spec:
   params:
+    # --- Existing TriggerTemplate parameters (likely used by IBM CD internally) ---
     - name: WORKSPACE_ID
       description: The workspace id
     - name: ibmcloud-api
       description: the ibmcloud api
       default: https://cloud.ibm.com
     - name: apikey
-      description: the ibmcloud api key
-    - name: enable-automatic-plan-apply
-      description: if true, a plan and apply will be automatically executed upon changes to the template code
-      default: "true"
+      description: the ibmcloud api key (used to create cd-secret)
+
+    # --- NEW: Parameters for YOUR 'ibm-cloud-web-app-pipeline' ---
+    - name: pipeline_git_repo_url
+      description: The URL of the Git repository for the pipeline.
+    - name: pipeline_git_branch
+      description: The Git branch to clone for the pipeline.
+      default: main
+    - name: pipeline_content_base_path
+      description: Subdirectory within the cloned repository for the pipeline's content (e.g., ansible-playbooks/app_code).
+      default: ""
+    - name: pipeline_hcp_tfe_token
+      description: HashiCorp Cloud Platform Terraform API Token for the pipeline.
+    - name: pipeline_hcp_org_name
+      description: HashiCorp Cloud Platform Organization Name for the pipeline.
+    - name: pipeline_hcp_workspace_name
+      description: HashiCorp Cloud Platform Workspace Name for the pipeline.
+    - name: pipeline_ssh_private_key
+      description: Private SSH key for the pipeline to access the VSI.
+    # --- END NEW PARAMETERS ---
+
   resourcetemplates:
     - apiVersion: v1
       kind: PersistentVolumeClaim
@@ -33,24 +50,46 @@ spec:
         name: cd-secret
       type: Opaque
       stringData:
-        API_KEY: $(params.apikey)
+        API_KEY: $(params.apikey) # This uses the 'apikey' param from the TriggerTemplate
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
       metadata:
         name: pipelinerun-$(uid)
       spec:
         pipelineRef:
-          name: ibm-cloud-web-app-pipeline
+          name: ibm-cloud-web-app-pipeline # Reference to your main pipeline
         workspaces:
-          - name: artifacts
+          # --- IMPORTANT: This workspace name MUST match what's in your pipeline.yaml ---
+          - name: pipeline-workspace
             persistentVolumeClaim:
               claimName: pipelinerun-$(uid)-pvc
         params:
-          - name: WORKSPACE_ID
-            value: $(params.WORKSPACE_ID)
-          - name: ibmcloud-api
-            value: $(params.ibmcloud-api)
-          - name: apikey
-            value: $(params.apikey)
-          - name: enable-automatic-plan-apply
-            value: $(params.enable-automatic-plan-apply)
+          # --- MAPPING: TriggerTemplate params TO PipelineRun params ---
+          - name: git-repo-url
+            value: $(params.pipeline_git_repo_url)
+          - name: git-branch
+            value: $(params.pipeline_git_branch)
+          - name: content-base-path
+            value: $(params.pipeline_content_base_path)
+          - name: hcp-tfe-token
+            value: $(params.pipeline_hcp_tfe_token)
+          - name: hcp-org-name
+            value: $(params.pipeline_hcp_org_name)
+          - name: hcp-workspace-name
+            value: $(params.pipeline_hcp_workspace_name)
+          - name: ssh-private-key
+            value: $(params.pipeline_ssh_private_key)
+          # --- END MAPPING ---
+
+          # The original parameters from your template that are NOT used by your 'ibm-cloud-web-app-pipeline'
+          # but might be used by IBM CD's internal logic. You can comment these out
+          # if they are not necessary or causing issues, but it's safer to leave them
+          # if you're unsure of IBM CD's internal requirements.
+          # - name: WORKSPACE_ID
+          #   value: $(params.WORKSPACE_ID)
+          # - name: ibmcloud-api
+          #   value: $(params.ibmcloud-api)
+          # - name: apikey
+          #   value: $(params.apikey)
+          # - name: enable-automatic-plan-apply
+          #   value: $(params.enable-automatic-plan-apply) # This one wasn't even defined in the TriggerTemplate's params, but was passed to PipelineRun

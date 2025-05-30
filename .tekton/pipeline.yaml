@@ -289,7 +289,7 @@ spec:
               REPO_BASE_PATH="$(params.content-base-path)"
               ANSIBLE_PLAYBOOKS_DIR="$(workspaces.source.path)/${REPO_BASE_PATH}/ansible-playbooks"
               
-              source "$(workspaces.source.path)/web_server_ip.env"
+              . "$(workspaces.source.path)/web_server_ip.env"
               echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"
 
               echo "[webservers]" > "${ANSIBLE_PLAYBOOKS_DIR}/inventory.ini"

@@ -174,7 +174,8 @@ spec:
                     [ "$RUN_STATUS" != "errored" ] && \
                     [ "$RUN_STATUS" != "canceled" ] && \
                     [ "$RUN_STATUS" != "discarded" ] && \
-                    [ "$RUN_STATUS" != "needs_confirmation" ]; do # Added needs_confirmation
+                    [ "$RUN_STATUS" != "needs_confirmation" ] && \ # Added needs_confirmation
+                    [ "$RUN_STATUS" != "planned_and_finished" ]; do # <-- ADD THIS LINE
                 
                 echo "Current status: ${RUN_STATUS}. Waiting 15 seconds..."
                 sleep 15

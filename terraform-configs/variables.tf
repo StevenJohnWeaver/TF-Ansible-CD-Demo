@@ -24,7 +24,7 @@ variable "aws_ami_id" {
   type        = string
   # IMPORTANT: Replace this with a valid AMI ID for your chosen region!
   # Example for Amazon Linux 2 (us-east-1): ami-0abcdef1234567890
-  default     = "ami-0abcdef1234567890" 
+  default     = "ami-0953476d60561c955" 
 }
 
 variable "aws_instance_type" {

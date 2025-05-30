@@ -114,7 +114,6 @@ spec:
               cd "${TERRAFORM_CONFIGS_DIR}"
 
               echo "Retrieving HCP Terraform Workspace ID for ${HCP_WORKSPACE_NAME}..."
-              # Store curl output for debugging before jq
               WORKSPACE_QUERY_RESPONSE=$(curl \
                 --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
                 --header "Content-Type: application/vnd.api+json" \
@@ -125,7 +124,7 @@ spec:
 
               HCP_WORKSPACE_ID=$(echo "${WORKSPACE_QUERY_RESPONSE}" | jq -r '.data[0].id')
 
-              if [ -z "$HCP_WORKSPACE_ID" ] || [ "$HCP_WORKSPACE_ID" = "null" ]; then # Changed = to "null"
+              if [ -z "$HCP_WORKSPACE_ID" ] || [ "$HCP_WORKSPACE_ID" = "null" ]; then
                 echo "Error: Could not find HCP Terraform workspace ID for ${HCP_WORKSPACE_NAME}. Response: ${WORKSPACE_QUERY_RESPONSE}"
                 exit 1
               fi
@@ -161,18 +160,25 @@ spec:
               RUN_ID=$(echo "$RUN_RESPONSE" | jq -r '.data.id')
               echo "HCP Terraform Run ID: ${RUN_ID}"
 
-              if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then # Changed = to "null"
+              if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
                 echo "Error: Failed to trigger HCP Terraform run. Response: $RUN_RESPONSE"
                 exit 1
               fi
 
               echo "Polling HCP Terraform run status. View run at: https://app.terraform.io/app/${HCP_ORG_NAME}/workspaces/${HCP_WORKSPACE_NAME}/runs/${RUN_ID}"
               RUN_STATUS=""
-              # Changed [[ to [ for sh compatibility and conditions to -a for multiple ANDs
-              while [ "$RUN_STATUS" != "applied" -a "$RUN_STATUS" != "errored" -a "$RUN_STATUS" != "canceled" -a "$RUN_STATUS" != "discarded" ]; do
+              
+              # Loop until the run is in a terminal state (applied, errored, canceled, discarded)
+              # OR it reaches 'needs_confirmation' for auto-approval
+              while [ "$RUN_STATUS" != "applied" ] && \
+                    [ "$RUN_STATUS" != "errored" ] && \
+                    [ "$RUN_STATUS" != "canceled" ] && \
+                    [ "$RUN_STATUS" != "discarded" ] && \
+                    [ "$RUN_STATUS" != "needs_confirmation" ]; do # Added needs_confirmation
+                
                 echo "Current status: ${RUN_STATUS}. Waiting 15 seconds..."
                 sleep 15
-                # Store curl output for debugging before jq
+                
                 RUN_STATUS_RESPONSE=$(curl \
                   --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
                   "https://app.terraform.io/api/v2/runs/${RUN_ID}")
@@ -180,19 +186,52 @@ spec:
                 echo "Raw Run Status Response:"
                 echo "${RUN_STATUS_RESPONSE}"
                 RUN_STATUS=$(echo "${RUN_STATUS_RESPONSE}" | jq -r '.data.attributes.status')
-                echo "Parsed RUN_STATUS: ${RUN_STATUS}" # Debugging line
+                echo "Parsed RUN_STATUS: ${RUN_STATUS}"
               done
 
               echo "HCP Terraform run completed with status: ${RUN_STATUS}"
 
-              # Changed [[ to [ for sh compatibility
+              # Check if the run needs confirmation and auto-approve it
+              if [ "$RUN_STATUS" = "needs_confirmation" ]; then
+                echo "Run needs confirmation. Auto-approving..."
+                APPROVE_RESPONSE=$(curl -X POST \
+                  --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
+                  --header "Content-Type: application/vnd.api+json" \
+                  "https://app.terraform.io/api/v2/runs/${RUN_ID}/actions/apply")
+                
+                echo "Raw Auto-Approve Response:"
+                echo "${APPROVE_RESPONSE}"
+
+                # Re-poll status after approval to wait for 'applied'
+                RUN_STATUS="" # Reset status to re-enter loop
+                echo "Waiting for run to apply after auto-approval..."
+                while [ "$RUN_STATUS" != "applied" ] && \
+                      [ "$RUN_STATUS" != "errored" ] && \
+                      [ "$RUN_STATUS" != "canceled" ] && \
+                      [ "$RUN_STATUS" != "discarded" ]; do
+                  
+                  echo "Current status: ${RUN_STATUS}. Waiting 15 seconds..."
+                  sleep 15
+                  
+                  RUN_STATUS_RESPONSE=$(curl \
+                    --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
+                    "https://app.terraform.io/api/v2/runs/${RUN_ID}")
+                  
+                  echo "Raw Run Status Response:"
+                  echo "${RUN_STATUS_RESPONSE}"
+                  RUN_STATUS=$(echo "${RUN_STATUS_RESPONSE}" | jq -r '.data.attributes.status')
+                  echo "Parsed RUN_STATUS: ${RUN_STATUS}"
+                done
+                echo "HCP Terraform run completed with status: ${RUN_STATUS} after auto-approval."
+              fi
+
+              # Final check for successful application
               if [ "$RUN_STATUS" != "applied" ]; then
                 echo "HCP Terraform run failed or was not applied successfully. Exiting."
                 exit 1
               fi
 
               echo "Retrieving Terraform outputs..."
-              # Store curl output for debugging before jq
               TF_OUTPUTS_RESPONSE=$(curl \
                 --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
                 "https://app.terraform.io/api/v2/workspaces/${HCP_WORKSPACE_ID}/outputs")
@@ -204,7 +243,7 @@ spec:
 
               WEB_SERVER_IP=$(echo "$TF_OUTPUTS" | jq -r '.data[] | select(.attributes.name=="web_server_ip") | .attributes.value')
 
-              if [ -z "$WEB_SERVER_IP" ] || [ "$WEB_SERVER_IP" = "null" ]; then # Changed = to "null"
+              if [ -z "$WEB_SERVER_IP" ] || [ "$WEB_SERVER_IP" = "null" ]; then
                 echo "Error: Could not retrieve web_server_ip from HCP Terraform outputs. Raw outputs: ${TF_OUTPUTS_RESPONSE}"
                 exit 1
               fi

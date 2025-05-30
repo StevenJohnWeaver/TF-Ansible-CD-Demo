@@ -39,11 +39,9 @@ spec:
   tasks:
     # 1. Task to clone the Git repository (inlined, using pipeline params)
     - name: clone-repository
-      # --- NEW: Bind the task's internal workspace 'output' to the pipeline's 'pipeline-workspace' ---
       workspaces:
         - name: output # The name of the workspace as defined in the taskSpec below
           workspace: pipeline-workspace # The name of the pipeline's top-level workspace
-      # --- END NEW ---
       taskSpec:
         workspaces:
           - name: output # This is the workspace defined within the taskSpec
@@ -54,20 +52,28 @@ spec:
               set -eu
               GIT_REPO_URL="$(params.git-repo-url)"
               GIT_BRANCH="$(params.git-branch)"
+              DEST_PATH="$(workspaces.output.path)" # Capture destination path
 
               echo "Cloning repository: ${GIT_REPO_URL} branch: ${GIT_BRANCH}"
-              git clone --depth=1 --branch="${GIT_BRANCH}" "${GIT_REPO_URL}" "$(workspaces.output.path)"
-              echo "Repository cloned successfully to $(workspaces.output.path)/"
-              ls -la "$(workspaces.output.path)"
+
+              # --- NEW: Cleanup the destination path if it exists and contains content ---
+              if [ -d "$DEST_PATH" ]; then
+                echo "Destination path '$DEST_PATH' already exists. Cleaning up contents..."
+                # Remove all files and directories (including hidden ones) within the destination path
+                rm -rf "${DEST_PATH}"/* "${DEST_PATH}"/.[!.]* || true 
+              fi
+              # --- END NEW ---
+
+              git clone --depth=1 --branch="${GIT_BRANCH}" "${GIT_REPO_URL}" "${DEST_PATH}"
+              echo "Repository cloned successfully to ${DEST_PATH}/"
+              ls -la "${DEST_PATH}"
 
     # 2. Task to provision infrastructure via HCP Terraform
     - name: provision-infrastructure
       runAfter: ["clone-repository"]
-      # --- NEW: Bind the task's internal workspace 'source' to the pipeline's 'pipeline-workspace' ---
       workspaces:
         - name: source # The name of the workspace as defined in the taskSpec below
           workspace: pipeline-workspace # The name of the pipeline's top-level workspace
-      # --- END NEW ---
       params:
         - name: hcp-tfe-token
           value: $(params.hcp-tfe-token)
@@ -195,11 +201,9 @@ spec:
     # 3. Task to deploy application with Ansible
     - name: deploy-application
       runAfter: ["provision-infrastructure"]
-      # --- NEW: Bind the task's internal workspace 'source' to the pipeline's 'pipeline-workspace' ---
       workspaces:
         - name: source # The name of the workspace as defined in the taskSpec below
           workspace: pipeline-workspace # The name of the pipeline's top-level workspace
-      # --- END NEW ---
       params:
         - name: ssh-private-key
           value: $(params.ssh-private-key)

@@ -40,11 +40,11 @@ spec:
     # 1. Task to clone the Git repository (inlined, using pipeline params)
     - name: clone-repository
       workspaces:
-        - name: output # The name of the workspace as defined in the taskSpec below
-          workspace: pipeline-workspace # The name of the pipeline's top-level workspace
+        - name: output
+          workspace: pipeline-workspace
       taskSpec:
         workspaces:
-          - name: output # This is the workspace defined within the taskSpec
+          - name: output
         steps:
           - name: git-clone-step
             image: alpine/git:latest
@@ -52,17 +52,14 @@ spec:
               set -eu
               GIT_REPO_URL="$(params.git-repo-url)"
               GIT_BRANCH="$(params.git-branch)"
-              DEST_PATH="$(workspaces.output.path)" # Capture destination path
+              DEST_PATH="$(workspaces.output.path)"
 
               echo "Cloning repository: ${GIT_REPO_URL} branch: ${GIT_BRANCH}"
 
-              # --- NEW: Cleanup the destination path if it exists and contains content ---
               if [ -d "$DEST_PATH" ]; then
                 echo "Destination path '$DEST_PATH' already exists. Cleaning up contents..."
-                # Remove all files and directories (including hidden ones) within the destination path
                 rm -rf "${DEST_PATH}"/* "${DEST_PATH}"/.[!.]* || true 
               fi
-              # --- END NEW ---
 
               git clone --depth=1 --branch="${GIT_BRANCH}" "${GIT_REPO_URL}" "${DEST_PATH}"
               echo "Repository cloned successfully to ${DEST_PATH}/"
@@ -72,8 +69,8 @@ spec:
     - name: provision-infrastructure
       runAfter: ["clone-repository"]
       workspaces:
-        - name: source # The name of the workspace as defined in the taskSpec below
-          workspace: pipeline-workspace # The name of the pipeline's top-level workspace
+        - name: source
+          workspace: pipeline-workspace
       params:
         - name: hcp-tfe-token
           value: $(params.hcp-tfe-token)
@@ -85,7 +82,7 @@ spec:
           value: $(params.content-base-path)
       taskSpec:
         workspaces:
-          - name: source # This is the workspace defined within the taskSpec
+          - name: source
         params:
           - name: hcp-tfe-token
             type: string
@@ -97,17 +94,16 @@ spec:
           - name: content-base-path
             type: string
         steps:
-          - name: install-deps
-            image: ubuntu:latest
-            script: |
-              set -eu
-              echo "Updating apt cache and installing curl, jq..."
-              apt-get update && apt-get install -y curl jq
-
+          # The 'install-deps' step has been removed because its installations
+          # were not available to subsequent steps.
           - name: trigger-hcp-run
             image: ubuntu:latest
             script: |
               set -eu
+              # --- NEW: Install curl and jq directly in this step ---
+              echo "Updating apt cache and installing curl, jq..."
+              apt-get update && apt-get install -y curl jq
+              # --- END NEW ---
 
               HCP_TFE_TOKEN="$(params.hcp-tfe-token)"
               HCP_ORG_NAME="$(params.hcp-org-name)"
@@ -202,8 +198,8 @@ spec:
     - name: deploy-application
       runAfter: ["provision-infrastructure"]
       workspaces:
-        - name: source # The name of the workspace as defined in the taskSpec below
-          workspace: pipeline-workspace # The name of the pipeline's top-level workspace
+        - name: source
+          workspace: pipeline-workspace
       params:
         - name: ssh-private-key
           value: $(params.ssh-private-key)
@@ -211,7 +207,7 @@ spec:
           value: $(params.content-base-path)
       taskSpec:
         workspaces:
-          - name: source # This is the workspace defined within the taskSpec
+          - name: source
         params:
           - name: ssh-private-key
             type: string
@@ -219,17 +215,16 @@ spec:
           - name: content-base-path
             type: string
         steps:
-          - name: install-ansible
-            image: ubuntu:latest
-            script: |
-              set -eu
-              echo "Updating apt cache and installing Ansible, sshpass..."
-              apt-get update && apt-get install -y ansible sshpass
-
+          # The 'install-ansible' step has been removed because its installations
+          # were not available to subsequent steps.
           - name: run-ansible-playbook
             image: ubuntu:latest
             script: |
               set -eu
+              # --- NEW: Install Ansible and sshpass directly in this step ---
+              echo "Updating apt cache and installing Ansible, sshpass..."
+              apt-get update && apt-get install -y ansible sshpass
+              # --- END NEW ---
 
               REPO_BASE_PATH="$(params.content-base-path)"
               ANSIBLE_PLAYBOOKS_DIR="$(workspaces.source.path)/${REPO_BASE_PATH}/ansible-playbooks"

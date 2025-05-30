@@ -1,0 +1,78 @@
+---
+- name: Deploy Web Application to AWS EC2
+  hosts: all
+  become: yes # Run tasks with sudo/root privileges
+
+  vars:
+    app_dir: /opt/webapp
+    app_port: 8080 # The port your Node.js application will listen on
+
+    # IMPORTANT: Set the correct SSH user for your EC2 AMI.
+    # 'ec2-user' is standard for Amazon Linux AMIs.
+    # Use 'ubuntu' for Ubuntu AMIs, 'centos' for CentOS, etc.
+    ansible_user: ec2-user 
+
+  tasks:
+    # Task to ensure Python is present. Amazon Linux 2 might require this if a minimal AMI is used.
+    # 'raw' module is used as it doesn't depend on Python being present.
+    - name: Ensure Python 3 is installed for Ansible (Amazon Linux/RedHat)
+      raw: sudo yum install -y python3
+      args:
+        creates: /usr/bin/python3 # Only run if python3 is not found
+      when: ansible_os_family == "RedHat" or ansible_os_family == "Amazon"
+
+    - name: Update yum cache and install Node.js and npm (RedHat/Amazon Linux family)
+      yum:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - nodejs # Or nodejs16, nodejs18 depending on repo
+        - npm
+      when: ansible_os_family == "RedHat" or ansible_os_family == "Amazon"
+
+    - name: Update apt cache and install Node.js and npm (Debian/Ubuntu family)
+      apt:
+        update_cache: yes
+        name: "{{ item }}"
+        state: present
+      loop:
+        - nodejs
+        - npm
+      when: ansible_os_family == "Debian"
+
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy web application code
+      # Assumes your 'app_code' directory is located relative to your playbook file.
+      copy:
+        src: ./app_code/
+        dest: "{{ app_dir }}"
+
+    - name: Install Node.js dependencies
+      # This task requires the 'community.general' collection to be installed:
+      # ansible-galaxy collection install community.general
+      community.general.npm:
+        path: "{{ app_dir }}"
+        state: present
+      # No specific OS family check needed here, as npm is installed conditionally above
+
+    - name: Start web application (using nohup for demo, consider systemd service for production)
+      shell: "nohup npm start > {{ app_dir }}/app.log 2>&1 &"
+      args:
+        chdir: "{{ app_dir }}"
+      register: app_start_result
+      # Use `changed_when: app_start_result.rc != 0` if you want it to always report changed on start.
+      # `nohup` always exits 0 immediately, so checking `rc` isn't useful for idempotency here.
+      # Add `creates: "{{ app_dir }}/app.pid"` if your app creates a PID file for idempotency.
+
+    - name: Ensure web app is running (optional health check from Ansible controller)
+      uri:
+        url: "http://{{ ansible_host }}:{{ app_port }}"
+        status_code: 200
+        timeout: 10 # Allow time for the application to start up and respond
+      delegate_to: localhost # This task runs on the machine where Ansible is executed (e.g., your pipeline agent)
+      run_once: true # Ensures the check is performed only once, even if multiple hosts are targeted

@@ -1,5 +1,3 @@
-# Tekton Pipeline Definition for IBM Cloud Continuous Delivery
-
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
@@ -14,12 +12,10 @@ spec:
       type: string
       description: The Git branch to clone.
       default: main
-    # --- NEW PARAMETER ---
     - name: content-base-path
       type: string
       description: Base subdirectory within the cloned repository where 'terraform-configs' and 'ansible-playbooks' are located (e.g., "my-project/deploy"). Default is empty if they are in the repo root.
-      default: "" # Default to empty if the folders are directly in the repo root
-    # --- END NEW PARAMETER ---
+      default: ""
     - name: hcp-tfe-token
       type: string
       description: HashiCorp Cloud Platform Terraform API Token.
@@ -37,15 +33,20 @@ spec:
 
   # Define workspaces for sharing data between tasks
   workspaces:
-    - name: pipeline-workspace
+    - name: pipeline-workspace # This is the main pipeline workspace
 
   # Define the tasks that make up your pipeline
   tasks:
     # 1. Task to clone the Git repository (inlined, using pipeline params)
     - name: clone-repository
+      # --- NEW: Bind the task's internal workspace 'output' to the pipeline's 'pipeline-workspace' ---
+      workspaces:
+        - name: output # The name of the workspace as defined in the taskSpec below
+          workspace: pipeline-workspace # The name of the pipeline's top-level workspace
+      # --- END NEW ---
       taskSpec:
         workspaces:
-          - name: output
+          - name: output # This is the workspace defined within the taskSpec
         steps:
           - name: git-clone-step
             image: alpine/git:latest
@@ -62,6 +63,11 @@ spec:
     # 2. Task to provision infrastructure via HCP Terraform
     - name: provision-infrastructure
       runAfter: ["clone-repository"]
+      # --- NEW: Bind the task's internal workspace 'source' to the pipeline's 'pipeline-workspace' ---
+      workspaces:
+        - name: source # The name of the workspace as defined in the taskSpec below
+          workspace: pipeline-workspace # The name of the pipeline's top-level workspace
+      # --- END NEW ---
       params:
         - name: hcp-tfe-token
           value: $(params.hcp-tfe-token)
@@ -69,13 +75,11 @@ spec:
           value: $(params.hcp-org-name)
         - name: hcp-workspace-name
           value: $(params.hcp-workspace-name)
-        # --- MAPPING NEW PARAMETER ---
-        - name: content-base-path # Map pipeline param to task param
+        - name: content-base-path
           value: $(params.content-base-path)
-        # --- END MAPPING NEW PARAMETER ---
       taskSpec:
         workspaces:
-          - name: source
+          - name: source # This is the workspace defined within the taskSpec
         params:
           - name: hcp-tfe-token
             type: string
@@ -84,10 +88,8 @@ spec:
             type: string
           - name: hcp-workspace-name
             type: string
-          # --- DECLARE NEW PARAMETER FOR TASK ---
           - name: content-base-path
             type: string
-          # --- END DECLARE NEW PARAMETER FOR TASK ---
         steps:
           - name: install-deps
             image: ubuntu:latest
@@ -105,10 +107,8 @@ spec:
               HCP_ORG_NAME="$(params.hcp-org-name)"
               HCP_WORKSPACE_NAME="$(params.hcp-workspace-name)"
               
-              # --- USE NEW PARAMETER HERE ---
               REPO_BASE_PATH="$(params.content-base-path)"
               TERRAFORM_CONFIGS_DIR="$(workspaces.source.path)/${REPO_BASE_PATH}/terraform-configs"
-              # --- END USE NEW PARAMETER ---
               
               echo "Navigating to Terraform configuration directory: ${TERRAFORM_CONFIGS_DIR}"
               cd "${TERRAFORM_CONFIGS_DIR}"
@@ -195,24 +195,25 @@ spec:
     # 3. Task to deploy application with Ansible
     - name: deploy-application
       runAfter: ["provision-infrastructure"]
+      # --- NEW: Bind the task's internal workspace 'source' to the pipeline's 'pipeline-workspace' ---
+      workspaces:
+        - name: source # The name of the workspace as defined in the taskSpec below
+          workspace: pipeline-workspace # The name of the pipeline's top-level workspace
+      # --- END NEW ---
       params:
         - name: ssh-private-key
           value: $(params.ssh-private-key)
-        # --- MAPPING NEW PARAMETER ---
-        - name: content-base-path # Map pipeline param to task param
+        - name: content-base-path
           value: $(params.content-base-path)
-        # --- END MAPPING NEW PARAMETER ---
       taskSpec:
         workspaces:
-          - name: source
+          - name: source # This is the workspace defined within the taskSpec
         params:
           - name: ssh-private-key
             type: string
             secret: true
-          # --- DECLARE NEW PARAMETER FOR TASK ---
           - name: content-base-path
             type: string
-          # --- END DECLARE NEW PARAMETER FOR TASK ---
         steps:
           - name: install-ansible
             image: ubuntu:latest
@@ -226,10 +227,8 @@ spec:
             script: |
               set -eu
 
-              # --- USE NEW PARAMETER HERE ---
               REPO_BASE_PATH="$(params.content-base-path)"
               ANSIBLE_PLAYBOOKS_DIR="$(workspaces.source.path)/${REPO_BASE_PATH}/ansible-playbooks"
-              # --- END USE NEW PARAMETER ---
               
               source "$(workspaces.source.path)/web_server_ip.env"
               echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"

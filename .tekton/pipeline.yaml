@@ -41,16 +41,25 @@ spec:
     # This task uses the built-in 'git-clone' task often available in IBM Cloud CD Tekton environments.
     # If not, you might need to define a custom task for git clone or inline the steps.
     - name: clone-repository
-      taskRef:
-        name: git-clone-repo # Assumes 'git-clone' task is available in the cluster/toolchain
-      params:
-        - name: url
-          value: $(params.git-repo-url)
-        - name: revision
-          value: $(params.git-branch)
-      workspaces:
-        - name: output
-          workspace: pipeline-workspace # The cloned repo will be in this workspace
+      taskSpec: # <--- CHANGE: Now uses taskSpec
+        params: # Parameters specific to this task
+          - name: url
+            type: string
+          - name: revision
+            type: string
+            default: main
+        workspaces:
+          - name: output # The workspace where the repo will be cloned
+        steps:
+          - name: git-clone-step # <--- NEW STEP
+            image: alpine/git:latest # A lightweight image with git installed
+            script: |
+              set -eu
+              echo "Cloning repository: $(params.url) branch: $(params.revision)"
+              # Clone into the output workspace path
+              git clone --depth=1 --branch=$(params.revision) $(params.url) $(workspaces.output.path)
+              echo "Repository cloned successfully to $(workspaces.output.path)/"
+              ls -la "$(workspaces.output.path)" # List contents for verification
 
     # 2. Task to provision infrastructure via HCP Terraform
     - name: provision-infrastructure

@@ -119,7 +119,7 @@ spec:
               HCP_WORKSPACE_ID=$(curl \
                 --header "Authorization: Bearer ${HCP_TFE_TOKEN}" \
                 --header "Content-Type: application/vnd.api+json" \
-                "https://app.terraform.io/api/v2/organizations/${HCP_ORG_NAME}/workspaces?filter[name]=${HCP_WORKSPACE_NAME}" | \
+                "https://app.terraform.io/api/v2/organizations/${HCP_ORG_NAME}/workspaces?filter%5Bname%5D=${HCP_WORKSPACE_NAME}" | \
                 jq -r '.data[0].id')
 
               if [ -z "$HCP_WORKSPACE_ID" ] || [ "$HCP_WORKSPACE_ID" == "null" ]; then

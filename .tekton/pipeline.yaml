@@ -6,7 +6,6 @@ metadata:
   name: ibm-cloud-web-app-pipeline
 spec:
   # Define parameters that will be passed into the pipeline
-  # These will typically be configured in your IBM Cloud CD pipeline setup UI
   params:
     - name: git-repo-url
       type: string
@@ -18,7 +17,7 @@ spec:
     - name: hcp-tfe-token
       type: string
       description: HashiCorp Cloud Platform Terraform API Token.
-      secret: true # Marks this parameter as sensitive, to be sourced from a secret
+      secret: true
     - name: hcp-org-name
       type: string
       description: HashiCorp Cloud Platform Organization Name.
@@ -28,27 +27,24 @@ spec:
     - name: ssh-private-key
       type: string
       description: Private SSH key to access the provisioned IBM Cloud VSI.
-      secret: true # Marks this parameter as sensitive, to be sourced from a secret
+      secret: true
 
   # Define workspaces for sharing data between tasks
-  # IBM Cloud CD will provision a PersistentVolumeClaim (PVC) for this
   workspaces:
-    - name: pipeline-workspace # Used to store cloned repo, and pass variables between tasks
+    - name: pipeline-workspace
 
   # Define the tasks that make up your pipeline
   tasks:
     # 1. Task to clone the Git repository (inlined, using pipeline params)
     - name: clone-repository
       taskSpec:
-        # NO task-specific params needed here, as we're directly using pipeline-level params
         workspaces:
-          - name: output # The workspace where the repo will be cloned
+          - name: output
         steps:
           - name: git-clone-step
             image: alpine/git:latest
             script: |
               set -eu
-              # Directly use the pipeline-level parameters here
               GIT_REPO_URL="$(params.git-repo-url)"
               GIT_BRANCH="$(params.git-branch)"
 
@@ -59,11 +55,20 @@ spec:
 
     # 2. Task to provision infrastructure via HCP Terraform
     - name: provision-infrastructure
-      runAfter: ["clone-repository"] # This task runs after the repository is cloned
-      taskSpec: # <--- ADD THIS LINE
+      runAfter: ["clone-repository"]
+      # --- START: MAPPING PIPELINE PARAMS TO TASK PARAMS ---
+      params: # <--- ADD THIS BLOCK! This maps pipeline params to taskSpec params
+        - name: hcp-tfe-token
+          value: $(params.hcp-tfe-token) # Take pipeline's 'hcp-tfe-token'
+        - name: hcp-org-name
+          value: $(params.hcp-org-name) # Take pipeline's 'hcp-org-name'
+        - name: hcp-workspace-name
+          value: $(params.hcp-workspace-name) # Take pipeline's 'hcp-workspace-name'
+      # --- END: MAPPING PIPELINE PARAMS TO TASK PARAMS ---
+      taskSpec:
         workspaces:
-          - name: source # Name for this task's workspace mount
-        params:
+          - name: source
+        params: # These are the parameters that the inlined task (taskSpec) expects
           - name: hcp-tfe-token
             type: string
             secret: true
@@ -72,7 +77,6 @@ spec:
           - name: hcp-workspace-name
             type: string
         steps:
-          # Step to install necessary tools (jq, curl)
           - name: install-deps
             image: ubuntu:latest
             script: |
@@ -80,18 +84,15 @@ spec:
               echo "Updating apt cache and installing curl, jq..."
               apt-get update && apt-get install -y curl jq
 
-          # Step to trigger HCP Terraform run and retrieve output
           - name: trigger-hcp-run
-            image: ubuntu:latest # Using ubuntu for consistency; it has bash shell
+            image: ubuntu:latest
             script: |
-              set -eu # Exit immediately if a command exits with a non-zero status or undefined variable is used
+              set -eu
 
-              # Parameters from task
               HCP_TFE_TOKEN="$(params.hcp-tfe-token)"
               HCP_ORG_NAME="$(params.hcp-org-name)"
               HCP_WORKSPACE_NAME="$(params.hcp-workspace-name)"
               
-              # Path to your Terraform configurations within the cloned repository
               TERRAFORM_CONFIGS_DIR="$(workspaces.source.path)/terraform-configs"
               
               echo "Navigating to Terraform configuration directory: ${TERRAFORM_CONFIGS_DIR}"
@@ -174,49 +175,44 @@ spec:
               fi
 
               echo "Web Server IP: ${WEB_SERVER_IP}"
-              # Write the IP to a file in the shared workspace for the next task
               echo "WEB_SERVER_IP=${WEB_SERVER_IP}" > "$(workspaces.source.path)/web_server_ip.env"
-      # --- END: New taskSpec block ---
-      
+
     # 3. Task to deploy application with Ansible
     - name: deploy-application
-      runAfter: ["provision-infrastructure"] # This task runs after infrastructure is provisioned
-      # --- START: New taskSpec block for inlined task definition ---
-      taskSpec: # <--- ADD THIS LINE
+      runAfter: ["provision-infrastructure"]
+      # --- START: MAPPING PIPELINE PARAMS TO TASK PARAMS ---
+      params: # <--- ADD THIS BLOCK! This maps pipeline params to taskSpec params
+        - name: ssh-private-key
+          value: $(params.ssh-private-key) # Take pipeline's 'ssh-private-key'
+      # --- END: MAPPING PIPELINE PARAMS TO TASK PARAMS ---
+      taskSpec:
         workspaces:
-          - name: source # Name for this task's workspace mount
-        params:
+          - name: source
+        params: # These are the parameters that the inlined task (taskSpec) expects
           - name: ssh-private-key
             type: string
             secret: true
         steps:
-          # Step to install Ansible
           - name: install-ansible
-            image: ubuntu:latest # Use an image where apt is available
+            image: ubuntu:latest
             script: |
               set -eu
               echo "Updating apt cache and installing Ansible, sshpass..."
               apt-get update && apt-get install -y ansible sshpass
 
-          # Step to run Ansible playbook
           - name: run-ansible-playbook
-            image: ubuntu:latest # Use ubuntu for consistency or a specific ansible image
+            image: ubuntu:latest
             script: |
               set -eu
 
               ANSIBLE_PLAYBOOKS_DIR="$(workspaces.source.path)/ansible-playbooks"
               
-              # Load the WEB_SERVER_IP from the file written by the previous task
               source "$(workspaces.source.path)/web_server_ip.env"
               echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"
 
-              # Create a dynamic Ansible inventory file
               echo "[webservers]" > "${ANSIBLE_PLAYBOOKS_DIR}/inventory.ini"
-              # Note: For demo, using 'root' user. In production, use a dedicated user with sudo.
               echo "${WEB_SERVER_IP} ansible_user=root ansible_ssh_private_key_file=${ANSIBLE_PLAYBOOKS_DIR}/ssh_key" >> "${ANSIBLE_PLAYBOOKS_DIR}/inventory.ini"
 
-              # Write the SSH private key from the secret parameter to a file
-              # Ensure permissions are correct for SSH
               echo "$(params.ssh-private-key)" > "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
               chmod 600 "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
 
@@ -226,4 +222,3 @@ spec:
               echo "Running Ansible playbook..."
               ansible-playbook -i inventory.ini playbook.yml
               echo "Ansible playbook execution complete."
-      # --- END: New taskSpec block ---

@@ -30,6 +30,8 @@ spec:
       description: HashiCorp Cloud Platform Workspace Name for the pipeline.
     - name: pipeline_ssh_private_key
       description: Private SSH key for the pipeline to access the VSI.
+    - name: pipeline_aws_region
+      description: The AWS region for resource deployment.
     # --- END NEW PARAMETERS ---
 
   resourcetemplates:
@@ -79,6 +81,8 @@ spec:
             value: $(params.pipeline_hcp_workspace_name)
           - name: ssh-private-key
             value: $(params.pipeline_ssh_private_key)
+          - name: aws-region
+            value: $(params.pipeline_aws_region)
           # --- END MAPPING ---
 
           # The original parameters from your template that are NOT used by your 'ibm-cloud-web-app-pipeline'

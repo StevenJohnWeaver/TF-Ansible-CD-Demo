@@ -32,6 +32,10 @@ spec:
       description: Private SSH key for the pipeline to access the VSI.
     - name: pipeline_aws_region
       description: The AWS region for resource deployment.
+    - name: pipeline_aws_access_key_id # Add this TriggerTemplate parameter
+      description: AWS Access Key ID for the pipeline.
+    - name: pipeline_aws_secret_access_key # Add this TriggerTemplate parameter
+      description: AWS Secret Access Key for the pipeline.
     # --- END NEW PARAMETERS ---
 
   resourcetemplates:
@@ -83,6 +87,10 @@ spec:
             value: $(params.pipeline_ssh_private_key)
           - name: aws-region
             value: $(params.pipeline_aws_region)
+          - name: aws-access-key-id
+            value: $(params.pipeline_aws_access_key_id) # Map it here
+          - name: aws-secret-access-key
+            value: $(params.pipeline_aws_secret_access_key) # Map it here
           # --- END MAPPING ---
 
           # The original parameters from your template that are NOT used by your 'ibm-cloud-web-app-pipeline'

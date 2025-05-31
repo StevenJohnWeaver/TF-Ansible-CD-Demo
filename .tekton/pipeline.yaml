@@ -301,7 +301,7 @@ spec:
 
               echo "Updating apt cache and installing dependencies..."
               apt-get update
-              apt-get install -y curl unzip jq # curl and unzip are needed for AWS CLI install, jq is useful
+              apt-get install -y curl unzip jq sudo # Added sudo to be installed
 
               # --- Install AWS CLI v2 (Recommended Method for Linux) ---
               echo "Installing AWS CLI v2..."

@@ -369,8 +369,7 @@ spec:
               # Full command string to be sent to SSM.
               # Variables like ${LOCAL_GIT_REPO_URL} are expanded here by the Tekton shell
               # BEFORE the string is sent to AWS SSM.
-              read -r -d '' SSM_COMMANDS << EOF_SSM_COMMANDS
-              #!/bin/bash
+              read -r -d '' SSM_COMMANDS << 'EOF_SSM_COMMANDS' # <-- Add single quotes around the delimiter              #!/bin/bash
               set -eu
               set -x # Enable debugging within the SSM script
 

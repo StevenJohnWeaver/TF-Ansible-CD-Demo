@@ -243,7 +243,7 @@ spec:
 
               TF_OUTPUTS=$(echo "$TF_OUTPUTS_RESPONSE" | jq -r '.')
 
-              WEB_SERVER_IP=$(echo "$TF_OUTPUTS" | jq -r '.data[] | select(.attributes.name=="web_server_public_ip") | .attributes.value')
+              WEB_SERVER_IP=$(echo "$TF_OUTPUTS" | jq -r '.included[] | select(.attributes.name=="web_server_public_ip") | .attributes.value')
 
               if [ -z "$WEB_SERVER_IP" ] || [ "$WEB_SERVER_IP" = "null" ]; then
                 echo "Error Could not retrieve web_server_ip from HCP Terraform outputs. Raw outputs: ${TF_OUTPUTS_RESPONSE}"

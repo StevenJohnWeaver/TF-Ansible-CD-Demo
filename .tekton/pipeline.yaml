@@ -367,47 +367,39 @@ spec:
               LOCAL_CONTENT_BASE_PATH="$(params.content-base-path)"
               LOCAL_PLAYBOOK_RELATIVE_PATH="ansible-playbooks" # This should be consistent with your repo structure
 
-              # Full command string to be sent to SSM.
-              # Variables like ${LOCAL_GIT_REPO_URL} are expanded here by the Tekton shell
-              # BEFORE the string is sent to AWS SSM.
-              read -r -d '' SSM_COMMANDS << 'EOF_SSM_COMMANDS' # <-- Add single quotes around the delimiter              #!/bin/bash
-              set -eu
-              set -x # Enable debugging within the SSM script
-
-              echo "Starting SSM script execution."
-
-              echo "Installing Ansible and Git..."
-              sudo apt-get update
-              sudo apt-get install -y ansible git # Ensure ansible is installed
-
-              echo "Cloning repository: ${LOCAL_GIT_REPO_URL} branch: ${LOCAL_GIT_BRANCH}"
-              echo "Attempting to set REPO_DIR."
-              REPO_DIR="/tmp/app_repo"
-              echo "REPO_DIR after assignment: '${REPO_DIR}'" # <--- Add this debug line
-
-              if [ -d "${REPO_DIR}" ]; then
-                echo "REPO_DIR exists, cleaning up."
-                sudo rm -rf "${REPO_DIR}"
-              fi
-              echo "Attempting git clone into: '${REPO_DIR}'" # <--- Add this debug line
-              git clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "${REPO_DIR}"
-
-              echo "Git clone completed." clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "${REPO_DIR}"
-
-              # Navigate to the playbook directory
-              cd "${REPO_DIR}/${LOCAL_CONTENT_BASE_PATH}/${LOCAL_PLAYBOOK_RELATIVE_PATH}"
-
-              # Create a local inventory file targeting 'localhost'
-              echo "[localhost]" > inventory.ini
-              echo "localhost ansible_connection=local" >> inventory.ini
-
-              echo "Running Ansible playbook..."
-              ansible-playbook -i inventory.ini playbook.yml
-              EOF_SSM_COMMANDS
-
               # Prepare the parameters JSON for SSM using jq to properly escape and format.
               # This ensures the multi-line script is passed correctly as a single string
               # within the JSON array expected by --parameters.
+              # --- REMOVE THE 'read -r -d '' SSM_COMMANDS' LINE ---
+              # --- AND Directly assign the heredoc to SSM_COMMANDS ---
+              SSM_COMMANDS=$(cat << 'EOF_SSM_COMMANDS'
+                #!/bin/bash
+                set -eu
+                set -x # Enable debugging within the SSM script
+
+                echo "Installing Ansible and Git..."
+                sudo apt-get update
+                sudo apt-get install -y ansible git # Ensure ansible is installed
+
+                echo "Cloning repository: ${LOCAL_GIT_REPO_URL} branch: ${LOCAL_GIT_BRANCH}"
+                REPO_DIR="/tmp/app_repo"
+                if [ -d "${REPO_DIR}" ]; then
+                  sudo rm -rf "${REPO_DIR}"
+                fi
+                git clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "${REPO_DIR}"
+
+                # Navigate to the playbook directory
+                cd "${REPO_DIR}/${LOCAL_CONTENT_BASE_PATH}/${LOCAL_PLAYBOOK_RELATIVE_PATH}"
+
+                # Create a local inventory file targeting 'localhost'
+                echo "[localhost]" > inventory.ini
+                echo "localhost ansible_connection=local" >> inventory.ini
+
+                echo "Running Ansible playbook..."
+                ansible-playbook -i inventory.ini playbook.yml
+                EOF_SSM_COMMANDS
+              ) # <-- IMPORTANT: Close the command substitution with a closing parenthesis
+              
               PARAMETERS_JSON=$(jq -n --arg cmd "${SSM_COMMANDS}" '{"commands": [$cmd]}')
 
               # Send the SSM command

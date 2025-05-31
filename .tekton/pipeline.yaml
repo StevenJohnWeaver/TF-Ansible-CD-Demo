@@ -299,8 +299,23 @@ spec:
               set -eu
               set -x # Enable shell debugging
 
-              echo "Updating apt cache and installing AWS CLI..."
-              apt-get update && apt-get install -y curl jq awscli # Added jq as it's useful for AWS CLI outputs
+              echo "Updating apt cache and installing dependencies..."
+              apt-get update
+              apt-get install -y curl unzip jq # curl and unzip are needed for AWS CLI install, jq is useful
+
+              # --- Install AWS CLI v2 (Recommended Method for Linux) ---
+              echo "Installing AWS CLI v2..."
+              # Download the installer
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              # Unzip it
+              unzip awscliv2.zip
+              # Run the installer. Default location is /usr/local/bin/aws
+              sudo ./aws/install
+
+              # Verify AWS CLI installation
+              aws --version
+              echo "AWS CLI installed successfully."
+              # --- End AWS CLI installation ---
 
               # Source the IP from the previous task (web_server_public_ip)
               . "$(workspaces.source.path)/web_server_ip.env"

@@ -297,6 +297,12 @@ spec:
 
               echo "$(params.ssh-private-key)" > "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
               chmod 600 "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
+              
+              echo "--- Debugging ssh_key file ---"
+              ls -l "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
+              head -n 2 "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key" # Show first 2 lines (BEGIN marker)
+              tail -n 2 "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key" # Show last 2 lines (END marker)
+              echo "--- End Debugging ssh_key file ---"
 
               echo "Navigating to Ansible playbooks directory: ${ANSIBLE_PLAYBOOKS_DIR}"
               cd "${ANSIBLE_PLAYBOOKS_DIR}"

@@ -267,6 +267,12 @@ spec:
           value: $(params.ssh-private-key)
         - name: content-base-path
           value: $(params.content-base-path)
+        - name: aws-region # Passed from pipeline parameters
+          value: $(params.aws-region)
+        - name: git-repo-url # Passed from pipeline parameters
+          value: $(params.git-repo-url)
+        - name: git-branch # Passed from pipeline parameters
+          value: $(params.git-branch)
       taskSpec:
         workspaces:
           - name: source
@@ -276,119 +282,118 @@ spec:
             secret: true
           - name: content-base-path
             type: string
+          - name: aws-region # Defined as a task parameter
+            type: string
+          - name: git-repo-url # Defined as a task parameter
+            type: string
+          - name: git-branch # Defined as a task parameter
+            type: string
         steps:
-          - name: run-ansible-playbook-via-ssm
-            image: ubuntu:latest # Ensure AWS CLI is installed in this image
-            script: |
-              set -eu
-              set -x
+          - name: run-ansible-playbook-via-ssm
+            image: ubuntu:latest # Ensure AWS CLI is installed in this image
+            script: |
+              set -eu
+              set -x # Enable shell debugging
+
               echo "Updating apt cache and installing AWS CLI..."
               apt-get update && apt-get install -y awscli
-              
+
               # Source the IP from the previous task (web_server_public_ip)
-              . "$(workspaces.source.path)/web_server_ip.env"
-              # WEB_SERVER_IP will now contain the value of web_server_public_ip
-              echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"
-              
-              # --- Retrieve EC2 Instance ID ---
-              # OPTION 1: Best - Get instance ID directly from Terraform outputs
-              # You'd need to add 'web_server_instance_id' as an output in your Terraform
-              # Example: output "web_server_instance_id" { value = aws_instance.web_server.id }
-              # Then retrieve it here:
-              # WEB_SERVER_INSTANCE_ID=$(echo "$TF_OUTPUTS" | jq -r '.data[] | select(.attributes.name=="web_server_instance_id") | .attributes.value')
+              . "$(workspaces.source.path)/web_server_ip.env"
+              # WEB_SERVER_IP will now contain the value of web_server_public_ip
+              echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"
 
-              # OPTION 2: If only public IP is available, query EC2 (requires ec2:DescribeInstances)
-              INSTANCE_ID=$(aws ec2 describe-instances \
-                --region "$(params.aws-region)" \ # Assuming aws-region is a parameter
-                --filters "Name=network-interface.association.public-ip,Values=${WEB_SERVER_IP}" \
-                --query "Reservations[0].Instances[0].InstanceId" \
-                --output text)
+              # --- Retrieve EC2 Instance ID ---
+              INSTANCE_ID=$(aws ec2 describe-instances \
+                --region "$(params.aws-region)" \
+                --filters "Name=network-interface.association.public-ip,Values=${WEB_SERVER_IP}" \
+                --query "Reservations[0].Instances[0].InstanceId" \
+                --output text)
 
-              if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
-                echo "Error: Could not find EC2 Instance ID for public IP ${WEB_SERVER_IP}"
-                exit 1
-              fi
-              echo "Found EC2 Instance ID: ${INSTANCE_ID}"
+              if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
+                echo "Error: Could not find EC2 Instance ID for public IP ${WEB_SERVER_IP}"
+                exit 1
+              fi
+              echo "Found EC2 Instance ID: ${INSTANCE_ID}"
 
-              # --- Prepare the script to run on the EC2 instance via SSM ---
-              # This script needs to ensure Ansible/Git are installed and then execute the playbook.
-              # Your playbook and any dependencies (e.g., inventory, SSH keys)
-              # must be available on the EC2 instance or downloaded by this script.
-              # Recommended: Store your Ansible playbooks in an S3 bucket and have the SSM script download them.
+              # Define the base path to your playbooks within your git repository
+              PLAYBOOK_RELATIVE_PATH="ansible-playbooks" # Matches your repo structure
 
-              # Define the base path to your playbooks within your git repository
-              PLAYBOOK_RELATIVE_PATH="ansible-playbooks" # Matches your repo structure
+              # Full command string to be sent to SSM
+              # Uses a here-document to correctly embed the multi-line script for SSM
+              # Tekton parameters are expanded here before sending to SSM
+              read -r -d '' SSM_COMMANDS << EOF_SSM_COMMANDS
+#!/bin/bash
+set -eu
+set -x # Enable debugging within the SSM script
 
-              # Full command string to be sent to SSM
-              # Replace 'YOUR_GIT_REPO_URL' and 'YOUR_GIT_BRANCH' with actual values
-              # You might add these as Tekton PipelineRun params.
-              SSM_COMMANDS='
-                #!/bin/bash
-                set -eu
-                
-                echo "Installing Ansible and Git..."
-                sudo apt-get update
-                sudo apt-get install -y ansible git
+echo "Installing Ansible and Git..."
+sudo apt-get update
+sudo apt-get install -y ansible git
 
-                echo "Cloning repository..."
-                REPO_DIR="/tmp/app_repo"
-                if [ -d "${REPO_DIR}" ]; then
-                  sudo rm -rf "${REPO_DIR}"
-                fi
-                git clone --depth=1 --branch="${GIT_BRANCH}" "${GIT_REPO_URL}" "${REPO_DIR}"
+echo "Cloning repository: $(params.git-repo-url) branch: $(params.git-branch)"
+REPO_DIR="/tmp/app_repo"
+if [ -d "${REPO_DIR}" ]; then
+  sudo rm -rf "${REPO_DIR}"
+fi
+# Use the Tekton pipeline parameters directly here
+git clone --depth=1 --branch="$(params.git-branch)" "$(params.git-repo-url)" "${REPO_DIR}"
 
-                # Navigate to the playbook directory
-                cd "${REPO_DIR}/${PLAYBOOK_RELATIVE_PATH}"
+# Navigate to the playbook directory, considering the content-base-path
+# Note: $(params.content-base-path) is relative to the *cloned repo root* within the SSM script.
+# If PLAYBOOK_RELATIVE_PATH is already relative to content-base-path, adjust this logic.
+# Assuming here PLAYBOOK_RELATIVE_PATH is directly under content-base-path.
+cd "${REPO_DIR}/$(params.content-base-path)/${PLAYBOOK_RELATIVE_PATH}"
 
-                # Create a local inventory file targeting 'localhost'
-                echo "[localhost]" > inventory.ini
-                echo "localhost ansible_connection=local" >> inventory.ini
+# Create a local inventory file targeting 'localhost'
+echo "[localhost]" > inventory.ini
+echo "localhost ansible_connection=local" >> inventory.ini
 
-                echo "Running Ansible playbook..."
-                ansible-playbook -i inventory.ini playbook.yml
-              '
+echo "Running Ansible playbook..."
+ansible-playbook -i inventory.ini playbook.yml
+EOF_SSM_COMMANDS
 
-              # Send the SSM command
-              echo "Sending SSM Run Command to ${INSTANCE_ID}..."
-              COMMAND_ID=$(aws ssm send-command \
-                --region "$(params.aws-region)" \
-                --instance-ids "${INSTANCE_ID}" \
-                --document-name "AWS-RunShellScript" \
-                --parameters "commands=['${SSM_COMMANDS}']" \
-                --timeout-seconds 600 \
-                --output text \
-                --query "Command.CommandId")
+              # Send the SSM command
+              echo "Sending SSM Run Command to ${INSTANCE_ID}..."
+              COMMAND_ID=$(aws ssm send-command \
+                --region "$(params.aws-region)" \
+                --instance-ids "${INSTANCE_ID}" \
+                --document-name "AWS-RunShellScript" \
+                --parameters "commands=['${SSM_COMMANDS}']" \
+                --timeout-seconds 600 \
+                --output text \
+                --query "Command.CommandId")
 
-              if [ -z "$COMMAND_ID" ] || [ "$COMMAND_ID" = "None" ]; then
-                echo "Error: Failed to send SSM command."
-                exit 1
-              fi
-              echo "SSM Command ID: ${COMMAND_ID}"
+              if [ -z "$COMMAND_ID" ] || [ "$COMMAND_ID" = "None" ]; then
+                echo "Error: Failed to send SSM command."
+                exit 1
+              fi
+              echo "SSM Command ID: ${COMMAND_ID}"
 
-              # Wait for the SSM command to complete
-              echo "Polling SSM command status..."
-              while true; do
-                COMMAND_STATUS=$(aws ssm list-command-invocations \
-                  --region "$(params.aws-region)" \
-                  --command-id "${COMMAND_ID}" \
-                  --details \
-                  --query "CommandInvocations[0].Status" \
-                  --output text)
-                
-                echo "Current SSM status: ${COMMAND_STATUS}"
-                if [[ "$COMMAND_STATUS" =~ ^(Success|Failed|Cancelled|TimedOut)$ ]]; then
-                  break
-                fi
-                echo "Waiting 10 seconds..."
-                sleep 10
-              done
+              # Wait for the SSM command to complete
+              echo "Polling SSM command status..."
+              while true; do
+                COMMAND_STATUS=$(aws ssm list-command-invocations \
+                  --region "$(params.aws-region)" \
+                  --command-id "${COMMAND_ID}" \
+                  --details \
+                  --query "CommandInvocations[0].Status" \
+                  --output text)
 
-              echo "SSM command completed with status: ${COMMAND_STATUS}"
+                echo "Current SSM status: ${COMMAND_STATUS}"
+                if [[ "$COMMAND_STATUS" =~ ^(Success|Failed|Cancelled|TimedOut)$ ]]; then
+                  break
+                fi
+                echo "Waiting 10 seconds..."
+                sleep 10
+              done
 
-              if [ "$COMMAND_STATUS" = "Success" ]; then
-                echo "Ansible playbook execution via SSM successful!"
-                exit 0
-              else
-                echo "Ansible playbook execution via SSM failed. Check SSM logs for command ID ${COMMAND_ID} in AWS Console."
-                exit 1
-              fi
+              echo "SSM command completed with status: ${COMMAND_STATUS}"
+
+              if [ "$COMMAND_STATUS" = "Success" ]; then
+                echo "Ansible playbook execution via SSM successful!"
+                exit 0
+              else
+                echo "Ansible playbook execution via SSM failed. Check SSM logs for command ID ${COMMAND_ID} in AWS Console."
+                exit 1
+              fi

@@ -282,15 +282,14 @@ spec:
             script: |
               set -eu
               set -x
-
-              echo "Updating apt cache and installing AWS CLI..."
-              apt-get update && apt-get install -y awscli
-
-              # Source the IP from the previous task (web_server_public_ip)
+              echo "Updating apt cache and installing AWS CLI..."
+              apt-get update && apt-get install -y awscli
+              
+              # Source the IP from the previous task (web_server_public_ip)
               . "$(workspaces.source.path)/web_server_ip.env"
               # WEB_SERVER_IP will now contain the value of web_server_public_ip
               echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"
-
+              
               # --- Retrieve EC2 Instance ID ---
               # OPTION 1: Best - Get instance ID directly from Terraform outputs
               # You'd need to add 'web_server_instance_id' as an output in your Terraform

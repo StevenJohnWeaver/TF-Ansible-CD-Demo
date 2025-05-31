@@ -33,6 +33,14 @@ spec:
     - name: aws-region
       type: string
       description: The AWS region where the EC2 instance is deployed.
+    - name: aws-access-key-id
+      type: string
+      description: Your AWS Access Key ID for authentication.
+      secret: true # Mark as secret
+    - name: aws-secret-access-key
+      type: string
+      description: Your AWS Secret Access Key for authentication.
+      secret: true # Mark as secret
 
   # Define workspaces for sharing data between tasks
   workspaces:

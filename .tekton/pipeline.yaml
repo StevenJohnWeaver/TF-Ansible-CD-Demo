@@ -302,5 +302,5 @@ spec:
               cd "${ANSIBLE_PLAYBOOKS_DIR}"
               
               echo "Running Ansible playbook..."
-              ansible-playbook -i inventory.ini playbook.yml
+              ansible-playbook -i inventory.ini playbook.yml -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
               echo "Ansible playbook execution complete."

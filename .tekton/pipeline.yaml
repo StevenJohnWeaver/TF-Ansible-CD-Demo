@@ -397,7 +397,7 @@ spec:
 
                 echo "Running Ansible playbook..."
                 ansible-playbook -i inventory.ini playbook.yml
-                EOF_SSM_COMMANDS
+              EOF_SSM_COMMANDS
               ) # <-- IMPORTANT: Close the command substitution with a closing parenthesis
               
               PARAMETERS_JSON=$(jq -n --arg cmd "${SSM_COMMANDS}" '{"commands": [$cmd]}')

@@ -363,34 +363,39 @@ spec:
               # Define the base path to your playbooks within your git repository
               PLAYBOOK_RELATIVE_PATH="ansible-playbooks" # Matches your repo structure
 
-              # Full command string to be sent to SSM
-              # Uses a here-document to correctly embed the multi-line script for SSM
-              # Tekton parameters are expanded here before sending to SSM
-              # IMPORTANT: The heredoc delimiter EOF_SSM_COMMANDS must be at the same indentation level
-              # as the 'read -r -d' command, and the content *inside* the heredoc must be
-              # indented further than the 'read -r -d' command.
-              read -r -d '' SSM_COMMANDS << EOF_SSM_COMMANDS
+              # Capture Tekton params into local shell variables for clarity and to ensure expansion
+              GIT_REPO_URL="$(params.git-repo-url)"
+              GIT_BRANCH="$(params.git-branch)"
+              CONTENT_BASE_PATH="$(params.content-base-path)"
+
+              # Build the SSM command string using placeholders and sed for substitution.
+              # We use a quoted heredoc delimiter << 'EOF_SSM_SCRIPT' to prevent outer shell expansion
+              # of variables *within* the heredoc. Values are injected afterwards via sed.
+              SSM_SCRIPT_CONTENT=$(cat << 'EOF_SSM_SCRIPT'
               #!/bin/bash
               set -eu
               set -x # Enable debugging within the SSM script
+
+              # These variables will be injected by the outer shell when SSM_SCRIPT_CONTENT is created.
+              # They are not Tekton params directly here.
+              INJECTED_GIT_REPO_URL="${GIT_REPO_URL_PLACEHOLDER}"
+              INJECTED_GIT_BRANCH="${GIT_BRANCH_PLACEHOLDER}"
+              INJECTED_CONTENT_BASE_PATH="${CONTENT_BASE_PATH_PLACEHOLDER}"
+              INJECTED_PLAYBOOK_RELATIVE_PATH="${PLAYBOOK_RELATIVE_PATH_PLACEHOLDER}"
 
               echo "Installing Ansible and Git..."
               sudo apt-get update
               sudo apt-get install -y ansible git # Ensure ansible is installed
 
-              echo "Cloning repository: $(params.git-repo-url) branch: $(params.git-branch)"
-              REPO_DIR="/tmp/app_repo"
+              echo "Cloning repository: ${INJECTED_GIT_REPO_URL} branch: ${INJECTED_GIT_BRANCH}"
+              REPO_DIR="/tmp/app_repo" # This is where REPO_DIR is defined within the SSM script
               if [ -d "${REPO_DIR}" ]; then
                 sudo rm -rf "${REPO_DIR}"
               fi
-              # Use the Tekton pipeline parameters directly here
-              git clone --depth=1 --branch="$(params.git-branch)" "$(params.git-repo-url)" "${REPO_DIR}"
+              git clone --depth=1 --branch="${INJECTED_GIT_BRANCH}" "${INJECTED_GIT_REPO_URL}" "${REPO_DIR}"
 
-              # Navigate to the playbook directory, considering the content-base-path
-              # Note: $(params.content-base-path) is relative to the *cloned repo root* within the SSM script.
-              # If PLAYBOOK_RELATIVE_PATH is already relative to content-base-path, adjust this logic.
-              # Assuming here PLAYBOOK_RELATIVE_PATH is directly under content-base-path.
-              cd "${REPO_DIR}/$(params.content-base-path)/${PLAYBOOK_RELATIVE_PATH}"
+              # Navigate to the playbook directory
+              cd "${REPO_DIR}/${INJECTED_CONTENT_BASE_PATH}/${INJECTED_PLAYBOOK_RELATIVE_PATH}"
 
               # Create a local inventory file targeting 'localhost'
               echo "[localhost]" > inventory.ini
@@ -398,7 +403,16 @@ spec:
 
               echo "Running Ansible playbook..."
               ansible-playbook -i inventory.ini playbook.yml
-              EOF_SSM_COMMANDS
+              EOF_SSM_SCRIPT
+              )
+
+              # Now, substitute the placeholders with the actual values using sed
+              SSM_COMMANDS=$(echo "${SSM_SCRIPT_CONTENT}" | \
+                sed "s|${GIT_REPO_URL_PLACEHOLDER}|${GIT_REPO_URL}|g" | \
+                sed "s|${GIT_BRANCH_PLACEHOLDER}|${GIT_BRANCH}|g" | \
+                sed "s|${CONTENT_BASE_PATH_PLACEHOLDER}|${CONTENT_BASE_PATH}|g" | \
+                sed "s|${PLAYBOOK_RELATIVE_PATH_PLACEHOLDER}|${PLAYBOOK_RELATIVE_PATH}|g" \
+              )
 
               # Send the SSM command
               echo "Sending SSM Run Command to ${INSTANCE_ID}..."

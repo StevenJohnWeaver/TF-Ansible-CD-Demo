@@ -394,54 +394,54 @@ spec:
 
               echo "Running Ansible playbook..."
               ansible-playbook -i inventory.ini playbook.yml
-            EOF_SSM_COMMANDS
+              EOF_SSM_COMMANDS
 
-            # Prepare the parameters JSON for SSM using jq to properly escape and format.
-            # This ensures the multi-line script is passed correctly as a single string
-            # within the JSON array expected by --parameters.
-            PARAMETERS_JSON=$(jq -n --arg cmd "${SSM_COMMANDS}" '{"commands": [$cmd]}')
+              # Prepare the parameters JSON for SSM using jq to properly escape and format.
+              # This ensures the multi-line script is passed correctly as a single string
+              # within the JSON array expected by --parameters.
+              PARAMETERS_JSON=$(jq -n --arg cmd "${SSM_COMMANDS}" '{"commands": [$cmd]}')
 
-            # Send the SSM command
-            echo "Sending SSM Run Command to ${INSTANCE_ID}..."
-            COMMAND_ID=$(aws ssm send-command \
-              --region "$(params.aws-region)" \
-              --instance-ids "${INSTANCE_ID}" \
-              --document-name "AWS-RunShellScript" \
-              --parameters "${PARAMETERS_JSON}" \
-              --timeout-seconds 600 \
-              --output text \
-              --query "Command.CommandId")
-
-            if [ -z "$COMMAND_ID" ] || [ "$COMMAND_ID" = "None" ]; then
-              echo "Error: Failed to send SSM command."
-              exit 1
-            fi
-            echo "SSM Command ID: ${COMMAND_ID}"
-
-            # Wait for the SSM command to complete
-            echo "Polling SSM command status..."
-            while true; do
-              COMMAND_STATUS=$(aws ssm list-command-invocations \
+              # Send the SSM command
+              echo "Sending SSM Run Command to ${INSTANCE_ID}..."
+              COMMAND_ID=$(aws ssm send-command \
                 --region "$(params.aws-region)" \
-                --command-id "${COMMAND_ID}" \
-                --details \
-                --query "CommandInvocations[0].Status" \
-                --output text)
+                --instance-ids "${INSTANCE_ID}" \
+                --document-name "AWS-RunShellScript" \
+                --parameters "${PARAMETERS_JSON}" \
+                --timeout-seconds 600 \
+                --output text \
+                --query "Command.CommandId")
 
-              echo "Current SSM status: ${COMMAND_STATUS}"
-              if [[ "$COMMAND_STATUS" =~ ^(Success|Failed|Cancelled|TimedOut)$ ]]; then
-                break
+              if [ -z "$COMMAND_ID" ] || [ "$COMMAND_ID" = "None" ]; then
+                echo "Error: Failed to send SSM command."
+                exit 1
               fi
-              echo "Waiting 10 seconds..."
-              sleep 10
-            done
+              echo "SSM Command ID: ${COMMAND_ID}"
+
+              # Wait for the SSM command to complete
+              echo "Polling SSM command status..."
+              while true; do
+                COMMAND_STATUS=$(aws ssm list-command-invocations \
+                  --region "$(params.aws-region)" \
+                  --command-id "${COMMAND_ID}" \
+                  --details \
+                  --query "CommandInvocations[0].Status" \
+                  --output text)
+
+                echo "Current SSM status: ${COMMAND_STATUS}"
+                if [[ "$COMMAND_STATUS" =~ ^(Success|Failed|Cancelled|TimedOut)$ ]]; then
+                  break
+                fi
+                echo "Waiting 10 seconds..."
+                sleep 10
+              done
             
-            echo "SSM command completed with status: ${COMMAND_STATUS}"
+              echo "SSM command completed with status: ${COMMAND_STATUS}"
             
-            if [ "$COMMAND_STATUS" = "Success" ]; then
-              echo "Ansible playbook execution via SSM successful!"
-              exit 0
-            else
-              echo "Ansible playbook execution via SSM failed. Check SSM logs for command ID ${COMMAND_ID} in AWS Console."
-              exit 1
-            fi
+              if [ "$COMMAND_STATUS" = "Success" ]; then
+                echo "Ansible playbook execution via SSM successful!"
+                exit 0
+              else
+                echo "Ansible playbook execution via SSM failed. Check SSM logs for command ID ${COMMAND_ID} in AWS Console."
+                exit 1
+              fi

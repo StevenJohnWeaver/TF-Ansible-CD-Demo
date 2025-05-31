@@ -314,6 +314,7 @@ spec:
           - name: run-ansible-playbook-via-ssm
             image: ubuntu:latest
             script: |
+              #!/bin/bash # <--- ADD THIS LINE
               set -eu
               set -x # Enable shell debugging
 

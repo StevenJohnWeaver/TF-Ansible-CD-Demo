@@ -36,11 +36,11 @@ spec:
     - name: aws-access-key-id
       type: string
       description: Your AWS Access Key ID for authentication.
-      secret: true # Mark as secret
+      secret: true
     - name: aws-secret-access-key
       type: string
       description: Your AWS Secret Access Key for authentication.
-      secret: true # Mark as secret
+      secret: true
 
   # Define workspaces for sharing data between tasks
   workspaces:
@@ -334,6 +334,14 @@ spec:
               aws --version
               echo "AWS CLI installed successfully."
               # --- End AWS CLI installation ---
+              
+              # --- Configure AWS Credentials from Tekton Parameters ---
+              echo "Setting AWS Credentials from pipeline parameters..."
+              export AWS_ACCESS_KEY_ID="$(params.aws-access-key-id)"
+              export AWS_SECRET_ACCESS_KEY="$(params.aws-secret-access-key)"
+              # AWS_REGION is already available via --region flag, but can also be set as an env var if preferred.
+              # export AWS_DEFAULT_REGION="$(params.aws-region)"
+              # --- End AWS Credentials Configuration ---
 
               # Source the IP from the previous task (web_server_public_ip)
               . "$(workspaces.source.path)/web_server_ip.env"

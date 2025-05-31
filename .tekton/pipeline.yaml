@@ -299,7 +299,7 @@ spec:
               chmod 600 "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key"
 
               echo "--- Debugging ssh_key file content (WARNING: Sensitive Data Ahead) ---"
-              xxd "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key" # This will print the hexadecimal dump
+              od -c "${ANSIBLE_PLAYBOOKS_DIR}/ssh_key" # This will print the character dump
               echo "--- End Debugging ssh_key file content ---"
 
               echo "Navigating to Ansible playbooks directory: ${ANSIBLE_PLAYBOOKS_DIR}"

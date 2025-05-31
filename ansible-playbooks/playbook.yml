@@ -1,38 +1,21 @@
 ---
-- name: Deploy Web Application to AWS EC2
-  hosts: all
-  become: yes # Run tasks with sudo/root privileges
+- name: Deploy Node.js application to EC2 instance
+  hosts: all # This targets all hosts defined in your Ansible inventory
+  remote_user: ec2-user # Connect to the EC2 instance as 'ec2-user'
+  become: yes # Use sudo for tasks that require root privileges (e.g., package installation)
 
   vars:
-    app_dir: /opt/webapp
-    app_port: 8080 # The port your Node.js application will listen on
-
-    # IMPORTANT: Set the correct SSH user for your EC2 AMI.
-    # 'ec2-user' is standard for Amazon Linux AMIs.
-    # Use 'ubuntu' for Ubuntu AMIs, 'centos' for CentOS, etc.
-    ansible_user: ec2-user 
+    app_dir: /home/ec2-user/my_node_app # The directory where the app will be deployed on EC2
+    app_name: my_web_app # A friendly name for your application process in pm2
 
   tasks:
-    # Task to ensure Python is present. Amazon Linux 2 might require this if a minimal AMI is used.
-    # 'raw' module is used as it doesn't depend on Python being present.
-    - name: Ensure Python 3 is installed for Ansible (Amazon Linux/RedHat)
-      raw: sudo yum install -y python3
-      args:
-        creates: /usr/bin/python3 # Only run if python3 is not found
-      when: ansible_os_family == "RedHat" or ansible_os_family == "Amazon"
-
-    - name: Update yum cache and install Node.js and npm (RedHat/Amazon Linux family)
-      yum:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - nodejs # Or nodejs16, nodejs18 depending on repo
-        - npm
-      when: ansible_os_family == "RedHat" or ansible_os_family == "Amazon"
-
-    - name: Update apt cache and install Node.js and npm (Debian/Ubuntu family)
-      apt:
+    - name: Update apt cache
+      ansible.builtin.apt:
         update_cache: yes
+      when: ansible_os_family == "Debian" # Ensures this task only runs on Debian-based systems
+
+    - name: Install Node.js and npm
+      ansible.builtin.apt:
         name: "{{ item }}"
         state: present
       loop:
@@ -40,39 +23,64 @@
         - npm
       when: ansible_os_family == "Debian"
 
+    - name: Install pm2 globally
+      # Using npm module to install pm2 globally.
+      # This task uses 'become: yes' as global npm packages often require root privileges.
+      ansible.builtin.npm:
+        name: pm2
+        global: yes
+        state: present
+
     - name: Create application directory
-      file:
+      ansible.builtin.file:
         path: "{{ app_dir }}"
         state: directory
+        owner: ec2-user # Ensure the directory is owned by the ec2-user
+        group: ec2-user
         mode: '0755'
+      become: no # Ensure this is run as the ec2-user after 'become:yes' has been used for system wide installs.
 
-    - name: Copy web application code
-      # Assumes your 'app_code' directory is located relative to your playbook file.
-      copy:
-        src: ./app_code/
-        dest: "{{ app_dir }}"
+    - name: Copy app.js to the application directory
+      ansible.builtin.copy:
+        src: ./app.js # Source path on your local machine/pipeline runner
+        dest: "{{ app_dir }}/app.js" # Destination path on the EC2 instance
+        owner: ec2-user
+        group: ec2-user
+      become: no # Copy as ec2-user
 
-    - name: Install Node.js dependencies
-      # This task requires the 'community.general' collection to be installed:
-      # ansible-galaxy collection install community.general
+    - name: Copy package.json to the application directory
+      ansible.builtin.copy:
+        src: ./package.json # Source path on your local machine/pipeline runner
+        dest: "{{ app_dir }}/package.json" # Destination path on the EC2 instance
+        owner: ec2-user
+        group: ec2-user
+      register: package_json_copy_result
+      become: no # Copy as ec2-user
+      ignore_errors: yes # Allows the playbook to continue if package.json is not found locally
+
+    - name: Check if package.json exists on the target system
+      ansible.builtin.stat:
+        path: "{{ app_dir }}/package.json"
+      register: remote_package_json_stat
+      delegate_to: "{{ inventory_hostname }}" # Run this stat check on the remote host
+
+    - name: Install Node.js dependencies (if package.json exists)
       community.general.npm:
         path: "{{ app_dir }}"
-        state: present
-      # No specific OS family check needed here, as npm is installed conditionally above
+      become: no # npm install should run as the application owner (ec2-user)
+      when: remote_package_json_stat.stat.exists # Only run if package.json was successfully copied or already exists
 
-    - name: Start web application (using nohup for demo, consider systemd service for production)
-      shell: "nohup npm start > {{ app_dir }}/app.log 2>&1 &"
+    - name: Start/Restart Node.js application with pm2
+      ansible.builtin.command: pm2 start "{{ app_dir }}/app.js" --name "{{ app_name }}" --force
       args:
-        chdir: "{{ app_dir }}"
-      register: app_start_result
-      # Use `changed_when: app_start_result.rc != 0` if you want it to always report changed on start.
-      # `nohup` always exits 0 immediately, so checking `rc` isn't useful for idempotency here.
-      # Add `creates: "{{ app_dir }}/app.pid"` if your app creates a PID file for idempotency.
+        chdir: "{{ app_dir }}" # Change into the app directory before running pm2
+      become: no # pm2 commands should run as the application owner (ec2-user)
+      register: pm2_start_result
+      changed_when: "'launched' in pm2_start_result.stdout or 'restarted' in pm2_start_result.stdout"
 
-    - name: Ensure web app is running (optional health check from Ansible controller)
-      uri:
-        url: "http://{{ ansible_host }}:{{ app_port }}"
-        status_code: 200
-        timeout: 10 # Allow time for the application to start up and respond
-      delegate_to: localhost # This task runs on the machine where Ansible is executed (e.g., your pipeline agent)
-      run_once: true # Ensures the check is performed only once, even if multiple hosts are targeted
+    - name: Save pm2 process list for persistence (optional, highly recommended)
+      # This command saves the pm2 process list so your app can restart automatically after reboot.
+      # You might need to run `pm2 startup` manually once on the EC2 instance if it's the first time
+      # to enable systemd/init.d integration for pm2.
+      ansible.builtin.command: pm2 save
+      become: no # pm2 save should run as the application owner (ec2-user)

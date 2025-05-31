@@ -374,16 +374,25 @@ spec:
               set -eu
               set -x # Enable debugging within the SSM script
 
+              echo "Starting SSM script execution."
+
               echo "Installing Ansible and Git..."
               sudo apt-get update
               sudo apt-get install -y ansible git # Ensure ansible is installed
 
               echo "Cloning repository: ${LOCAL_GIT_REPO_URL} branch: ${LOCAL_GIT_BRANCH}"
+              echo "Attempting to set REPO_DIR."
               REPO_DIR="/tmp/app_repo"
+              echo "REPO_DIR after assignment: '${REPO_DIR}'" # <--- Add this debug line
+
               if [ -d "${REPO_DIR}" ]; then
+                echo "REPO_DIR exists, cleaning up."
                 sudo rm -rf "${REPO_DIR}"
               fi
+              echo "Attempting git clone into: '${REPO_DIR}'" # <--- Add this debug line
               git clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "${REPO_DIR}"
+
+              echo "Git clone completed." clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "${REPO_DIR}"
 
               # Navigate to the playbook directory
               cd "${REPO_DIR}/${LOCAL_CONTENT_BASE_PATH}/${LOCAL_PLAYBOOK_RELATIVE_PATH}"

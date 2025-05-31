@@ -394,7 +394,7 @@ spec:
 
               echo "Running Ansible playbook..."
               ansible-playbook -i inventory.ini playbook.yml
-              EOF_SSM_COMMANDS
+            EOF_SSM_COMMANDS
 
               # Prepare the parameters JSON for SSM using jq to properly escape and format.
               # This ensures the multi-line script is passed correctly as a single string

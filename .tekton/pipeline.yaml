@@ -277,6 +277,10 @@ spec:
           value: $(params.git-repo-url)
         - name: git-branch
           value: $(params.git-branch)
+        - name: aws-access-key-id
+          value: $(params.aws-access-key-id)
+        - name: aws-secret-access-key
+          value: $(params.aws-secret-access-key)
       taskSpec:
         workspaces:
           - name: source
@@ -292,6 +296,12 @@ spec:
             type: string
           - name: git-branch
             type: string
+          - name: aws-access-key-id
+            type: string
+            secret: true
+          - name: aws-secret-access-key
+            type: string
+            secret: true
         steps:
           - name: run-ansible-playbook-via-ssm
             image: ubuntu:latest

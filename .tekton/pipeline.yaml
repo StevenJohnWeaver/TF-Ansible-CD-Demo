@@ -360,59 +360,46 @@ spec:
               fi
               echo "Found EC2 Instance ID: ${INSTANCE_ID}"
 
-              # Define the base path to your playbooks within your git repository
-              PLAYBOOK_RELATIVE_PATH="ansible-playbooks" # Matches your repo structure
+              # Capture Tekton parameters into shell variables for direct embedding in SSM_COMMANDS
+              LOCAL_GIT_REPO_URL="$(params.git-repo-url)"
+              LOCAL_GIT_BRANCH="$(params.git-branch)"
+              LOCAL_CONTENT_BASE_PATH="$(params.content-base-path)"
+              LOCAL_PLAYBOOK_RELATIVE_PATH="ansible-playbooks" # This should be consistent with your repo structure
 
-              # Capture Tekton params into local shell variables for clarity and to ensure expansion
-              GIT_REPO_URL="$(params.git-repo-url)"
-              GIT_BRANCH="$(params.git-branch)"
-              CONTENT_BASE_PATH="$(params.content-base-path)"
+              # Full command string to be sent to SSM.
+              # Variables like ${LOCAL_GIT_REPO_URL} are expanded here by the Tekton shell
+              # BEFORE the string is sent to AWS SSM.
+              read -r -d '' SSM_COMMANDS << EOF_SSM_COMMANDS
+#!/bin/bash
+set -eu
+set -x # Enable debugging within the SSM script
 
-              # Build the SSM command string using placeholders and sed for substitution.
-              # We use a quoted heredoc delimiter << 'EOF_SSM_SCRIPT' to prevent outer shell expansion
-              # of variables *within* the heredoc. Values are injected afterwards via sed.
-              SSM_SCRIPT_CONTENT=$(cat << 'EOF_SSM_SCRIPT'
-              #!/bin/bash
-              set -eu
-              set -x # Enable debugging within the SSM script
+echo "Installing Ansible and Git..."
+sudo apt-get update
+sudo apt-get install -y ansible git # Ensure ansible is installed
 
-              # These variables will be injected by the outer shell when SSM_SCRIPT_CONTENT is created.
-              # They are not Tekton params directly here.
-              INJECTED_GIT_REPO_URL="${GIT_REPO_URL_PLACEHOLDER}"
-              INJECTED_GIT_BRANCH="${GIT_BRANCH_PLACEHOLDER}"
-              INJECTED_CONTENT_BASE_PATH="${CONTENT_BASE_PATH_PLACEHOLDER}"
-              INJECTED_PLAYBOOK_RELATIVE_PATH="${PLAYBOOK_RELATIVE_PATH_PLACEHOLDER}"
+echo "Cloning repository: ${LOCAL_GIT_REPO_URL} branch: ${LOCAL_GIT_BRANCH}"
+REPO_DIR="/tmp/app_repo"
+if [ -d "${REPO_DIR}" ]; then
+  sudo rm -rf "${REPO_DIR}"
+fi
+git clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "${REPO_DIR}"
 
-              echo "Installing Ansible and Git..."
-              sudo apt-get update
-              sudo apt-get install -y ansible git # Ensure ansible is installed
+# Navigate to the playbook directory
+cd "${REPO_DIR}/${LOCAL_CONTENT_BASE_PATH}/${LOCAL_PLAYBOOK_RELATIVE_PATH}"
 
-              echo "Cloning repository: ${INJECTED_GIT_REPO_URL} branch: ${INJECTED_GIT_BRANCH}"
-              REPO_DIR="/tmp/app_repo" # This is where REPO_DIR is defined within the SSM script
-              if [ -d "${REPO_DIR}" ]; then
-                sudo rm -rf "${REPO_DIR}"
-              fi
-              git clone --depth=1 --branch="${INJECTED_GIT_BRANCH}" "${INJECTED_GIT_REPO_URL}" "${REPO_DIR}"
+# Create a local inventory file targeting 'localhost'
+echo "[localhost]" > inventory.ini
+echo "localhost ansible_connection=local" >> inventory.ini
 
-              # Navigate to the playbook directory
-              cd "${REPO_DIR}/${INJECTED_CONTENT_BASE_PATH}/${INJECTED_PLAYBOOK_RELATIVE_PATH}"
+echo "Running Ansible playbook..."
+ansible-playbook -i inventory.ini playbook.yml
+EOF_SSM_COMMANDS
 
-              # Create a local inventory file targeting 'localhost'
-              echo "[localhost]" > inventory.ini
-              echo "localhost ansible_connection=local" >> inventory.ini
-
-              echo "Running Ansible playbook..."
-              ansible-playbook -i inventory.ini playbook.yml
-              EOF_SSM_SCRIPT
-              )
-
-              # Now, substitute the placeholders with the actual values using sed
-              SSM_COMMANDS=$(echo "${SSM_SCRIPT_CONTENT}" | \
-                sed "s|${GIT_REPO_URL_PLACEHOLDER}|${GIT_REPO_URL}|g" | \
-                sed "s|${GIT_BRANCH_PLACEHOLDER}|${GIT_BRANCH}|g" | \
-                sed "s|${CONTENT_BASE_PATH_PLACEHOLDER}|${CONTENT_BASE_PATH}|g" | \
-                sed "s|${PLAYBOOK_RELATIVE_PATH_PLACEHOLDER}|${PLAYBOOK_RELATIVE_PATH}|g" \
-              )
+              # Prepare the parameters JSON for SSM using jq to properly escape and format.
+              # This ensures the multi-line script is passed correctly as a single string
+              # within the JSON array expected by --parameters.
+              PARAMETERS_JSON=$(jq -n --arg cmd "${SSM_COMMANDS}" '{"commands": [$cmd]}')
 
               # Send the SSM command
               echo "Sending SSM Run Command to ${INSTANCE_ID}..."
@@ -420,7 +407,7 @@ spec:
                 --region "$(params.aws-region)" \
                 --instance-ids "${INSTANCE_ID}" \
                 --document-name "AWS-RunShellScript" \
-                --parameters "commands=['${SSM_COMMANDS}']" \
+                --parameters "${PARAMETERS_JSON}" \
                 --timeout-seconds 600 \
                 --output text \
                 --query "Command.CommandId")

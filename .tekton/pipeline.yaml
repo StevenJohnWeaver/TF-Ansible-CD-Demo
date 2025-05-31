@@ -370,31 +370,31 @@ spec:
               # Variables like ${LOCAL_GIT_REPO_URL} are expanded here by the Tekton shell
               # BEFORE the string is sent to AWS SSM.
               read -r -d '' SSM_COMMANDS << EOF_SSM_COMMANDS
-#!/bin/bash
-set -eu
-set -x # Enable debugging within the SSM script
+              #!/bin/bash
+              set -eu
+              set -x # Enable debugging within the SSM script
 
-echo "Installing Ansible and Git..."
-sudo apt-get update
-sudo apt-get install -y ansible git # Ensure ansible is installed
+              echo "Installing Ansible and Git..."
+              sudo apt-get update
+              sudo apt-get install -y ansible git # Ensure ansible is installed
 
-echo "Cloning repository: ${LOCAL_GIT_REPO_URL} branch: ${LOCAL_GIT_BRANCH}"
-REPO_DIR="/tmp/app_repo"
-if [ -d "${REPO_DIR}" ]; then
-  sudo rm -rf "${REPO_DIR}"
-fi
-git clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "${REPO_DIR}"
+              echo "Cloning repository: ${LOCAL_GIT_REPO_URL} branch: ${LOCAL_GIT_BRANCH}"
+              REPO_DIR="/tmp/app_repo"
+              if [ -d "${REPO_DIR}" ]; then
+                sudo rm -rf "${REPO_DIR}"
+              fi
+              git clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "${REPO_DIR}"
 
-# Navigate to the playbook directory
-cd "${REPO_DIR}/${LOCAL_CONTENT_BASE_PATH}/${LOCAL_PLAYBOOK_RELATIVE_PATH}"
+             # Navigate to the playbook directory
+             cd "${REPO_DIR}/${LOCAL_CONTENT_BASE_PATH}/${LOCAL_PLAYBOOK_RELATIVE_PATH}"
 
-# Create a local inventory file targeting 'localhost'
-echo "[localhost]" > inventory.ini
-echo "localhost ansible_connection=local" >> inventory.ini
+             # Create a local inventory file targeting 'localhost'
+             echo "[localhost]" > inventory.ini
+             echo "localhost ansible_connection=local" >> inventory.ini
 
-echo "Running Ansible playbook..."
-ansible-playbook -i inventory.ini playbook.yml
-EOF_SSM_COMMANDS
+             echo "Running Ansible playbook..."
+             ansible-playbook -i inventory.ini playbook.yml
+             EOF_SSM_COMMANDS
 
               # Prepare the parameters JSON for SSM using jq to properly escape and format.
               # This ensures the multi-line script is passed correctly as a single string

@@ -257,6 +257,7 @@ spec:
               exit 0 # Success!
 
     # 3. Task to deploy application with Ansible
+# 3. Task to deploy application with Ansible
     - name: deploy-application
       runAfter: ["provision-infrastructure"]
       workspaces:
@@ -267,11 +268,11 @@ spec:
           value: $(params.ssh-private-key)
         - name: content-base-path
           value: $(params.content-base-path)
-        - name: aws-region # Passed from pipeline parameters
+        - name: aws-region
           value: $(params.aws-region)
-        - name: git-repo-url # Passed from pipeline parameters
+        - name: git-repo-url
           value: $(params.git-repo-url)
-        - name: git-branch # Passed from pipeline parameters
+        - name: git-branch
           value: $(params.git-branch)
       taskSpec:
         workspaces:
@@ -282,25 +283,24 @@ spec:
             secret: true
           - name: content-base-path
             type: string
-          - name: aws-region # Defined as a task parameter
+          - name: aws-region
             type: string
-          - name: git-repo-url # Defined as a task parameter
+          - name: git-repo-url
             type: string
-          - name: git-branch # Defined as a task parameter
+          - name: git-branch
             type: string
         steps:
           - name: run-ansible-playbook-via-ssm
-            image: ubuntu:latest # Ensure AWS CLI is installed in this image
+            image: ubuntu:latest
             script: |
               set -eu
               set -x # Enable shell debugging
 
               echo "Updating apt cache and installing AWS CLI..."
-              apt-get update && apt-get install -y awscli
+              apt-get update && apt-get install -y curl jq awscli # Added jq as it's useful for AWS CLI outputs
 
               # Source the IP from the previous task (web_server_public_ip)
               . "$(workspaces.source.path)/web_server_ip.env"
-              # WEB_SERVER_IP will now contain the value of web_server_public_ip
               echo "Loaded WEB_SERVER_IP: $WEB_SERVER_IP"
 
               # --- Retrieve EC2 Instance ID ---
@@ -322,36 +322,39 @@ spec:
               # Full command string to be sent to SSM
               # Uses a here-document to correctly embed the multi-line script for SSM
               # Tekton parameters are expanded here before sending to SSM
+              # IMPORTANT: The heredoc delimiter EOF_SSM_COMMANDS must be at the same indentation level
+              # as the 'read -r -d' command, and the content *inside* the heredoc must be
+              # indented further than the 'read -r -d' command.
               read -r -d '' SSM_COMMANDS << EOF_SSM_COMMANDS
-#!/bin/bash
-set -eu
-set -x # Enable debugging within the SSM script
+              #!/bin/bash
+              set -eu
+              set -x # Enable debugging within the SSM script
 
-echo "Installing Ansible and Git..."
-sudo apt-get update
-sudo apt-get install -y ansible git
+              echo "Installing Ansible and Git..."
+              sudo apt-get update
+              sudo apt-get install -y ansible git # Ensure ansible is installed
 
-echo "Cloning repository: $(params.git-repo-url) branch: $(params.git-branch)"
-REPO_DIR="/tmp/app_repo"
-if [ -d "${REPO_DIR}" ]; then
-  sudo rm -rf "${REPO_DIR}"
-fi
-# Use the Tekton pipeline parameters directly here
-git clone --depth=1 --branch="$(params.git-branch)" "$(params.git-repo-url)" "${REPO_DIR}"
+              echo "Cloning repository: $(params.git-repo-url) branch: $(params.git-branch)"
+              REPO_DIR="/tmp/app_repo"
+              if [ -d "${REPO_DIR}" ]; then
+                sudo rm -rf "${REPO_DIR}"
+              fi
+              # Use the Tekton pipeline parameters directly here
+              git clone --depth=1 --branch="$(params.git-branch)" "$(params.git-repo-url)" "${REPO_DIR}"
 
-# Navigate to the playbook directory, considering the content-base-path
-# Note: $(params.content-base-path) is relative to the *cloned repo root* within the SSM script.
-# If PLAYBOOK_RELATIVE_PATH is already relative to content-base-path, adjust this logic.
-# Assuming here PLAYBOOK_RELATIVE_PATH is directly under content-base-path.
-cd "${REPO_DIR}/$(params.content-base-path)/${PLAYBOOK_RELATIVE_PATH}"
+              # Navigate to the playbook directory, considering the content-base-path
+              # Note: $(params.content-base-path) is relative to the *cloned repo root* within the SSM script.
+              # If PLAYBOOK_RELATIVE_PATH is already relative to content-base-path, adjust this logic.
+              # Assuming here PLAYBOOK_RELATIVE_PATH is directly under content-base-path.
+              cd "${REPO_DIR}/$(params.content-base-path)/${PLAYBOOK_RELATIVE_PATH}"
 
-# Create a local inventory file targeting 'localhost'
-echo "[localhost]" > inventory.ini
-echo "localhost ansible_connection=local" >> inventory.ini
+              # Create a local inventory file targeting 'localhost'
+              echo "[localhost]" > inventory.ini
+              echo "localhost ansible_connection=local" >> inventory.ini
 
-echo "Running Ansible playbook..."
-ansible-playbook -i inventory.ini playbook.yml
-EOF_SSM_COMMANDS
+              echo "Running Ansible playbook..."
+              ansible-playbook -i inventory.ini playbook.yml
+              EOF_SSM_COMMANDS
 
               # Send the SSM command
               echo "Sending SSM Run Command to ${INSTANCE_ID}..."

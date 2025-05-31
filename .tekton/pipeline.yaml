@@ -277,10 +277,6 @@ spec:
           - name: content-base-path
             type: string
         steps:
-# ... (other task definitions)
-      taskSpec:
-        # ... (workspaces and params)
-        steps:
           - name: run-ansible-playbook-via-ssm
             image: ubuntu:latest # Ensure AWS CLI is installed in this image
             script: |

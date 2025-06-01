@@ -14,11 +14,11 @@
         update_cache: yes
       when: ansible_os_family == "RedHat" # Amazon Linux falls under RedHat os_family
 
-    - name: Enable Node.js module stream (e.g., nodejs:20 for LTS)
-      ansible.builtin.command: dnf module enable -y nodejs:20 # You can choose a different version like nodejs:18
-      args:
-        creates: /etc/dnf/modules.d/nodejs.module # This prevents running the command if already enabled
-      when: ansible_os_family == "RedHat"
+    # - name: Enable Node.js module stream (e.g., nodejs:20 for LTS)
+    #  ansible.builtin.command: dnf module enable -y nodejs:20 # You can choose a different version like nodejs:18
+    #  args:
+    #    creates: /etc/dnf/modules.d/nodejs.module # This prevents running the command if already enabled
+    #  when: ansible_os_family == "RedHat"
 
     - name: Install Node.js and npm via dnf
       ansible.builtin.dnf:

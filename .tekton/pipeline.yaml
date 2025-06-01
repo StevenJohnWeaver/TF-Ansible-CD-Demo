@@ -372,7 +372,7 @@ spec:
               # within the JSON array expected by --parameters.
               # --- REMOVE THE 'read -r -d '' SSM_COMMANDS' LINE ---
               # --- AND Directly assign the heredoc to SSM_COMMANDS ---
-              SSM_COMMANDS=$(cat << 'EOF_SSM_COMMANDS'
+              SSM_COMMANDS=$(cat << EOF_SSM_COMMANDS
                 #!/bin/bash
                 set -eu
                 set -x # Enable debugging within the SSM script

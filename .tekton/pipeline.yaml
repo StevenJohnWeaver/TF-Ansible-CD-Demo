@@ -379,9 +379,8 @@ spec:
 
                 echo "Installing Ansible and Git..."
                 sudo yum update -y
-                # Ensure ansible is installed
                 sudo yum install -y ansible git
-
+                
                 echo "Cloning repository: ${LOCAL_GIT_REPO_URL} branch: ${LOCAL_GIT_BRANCH}"
                 REPO_DIR="/tmp/app_repo"
                 if [ -d "${REPO_DIR}" ]; then

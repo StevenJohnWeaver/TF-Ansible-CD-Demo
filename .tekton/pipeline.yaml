@@ -378,8 +378,8 @@ spec:
                 set -x # Enable debugging within the SSM script
 
                 echo "Installing Ansible and Git..."
-                sudo apt-get update
-                sudo apt-get install -y ansible git # Ensure ansible is installed
+                sudo yum update -y
+                sudo yum install -y ansible git # Ensure ansible is installed
 
                 echo "Cloning repository: ${LOCAL_GIT_REPO_URL} branch: ${LOCAL_GIT_BRANCH}"
                 REPO_DIR="/tmp/app_repo"

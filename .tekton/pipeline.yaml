@@ -397,7 +397,7 @@ spec:
                 echo "localhost ansible_connection=local" >> inventory.ini
 
                 echo "Running Ansible playbook..."
-                ansible-playbook -i inventory.ini playbook.yml
+                ansible-playbook -i inventory.ini playbook.yml -vvv
               EOF_SSM_COMMANDS
                              ) # <-- IMPORTANT: Close the command substitution with a closing parenthesis
               

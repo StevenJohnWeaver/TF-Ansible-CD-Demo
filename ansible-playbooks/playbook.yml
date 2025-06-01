@@ -60,7 +60,7 @@
         dest: "{{ app_dir }}/package.json" # Destination path on the EC2 instance
         owner: ec2-user
         group: ec2-user
-        register: package_json_copy_result
+      register: package_json_copy_result
       become: no # Copy as ec2-user
       ignore_errors: yes # Allows the playbook to continue if package.json is not found locally
 

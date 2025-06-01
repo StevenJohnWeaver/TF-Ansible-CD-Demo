@@ -390,7 +390,7 @@ spec:
                 git clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "\${REPO_DIR}"
 
                 # Navigate to the playbook directory
-                cd "\${REPO_DIR}/${LOCAL_CONTENT_BASE_PATH}/${LOCAL_PLAYBOOK_RELATIVE_PATH}"
+                cd "\${REPO_DIR}/\${LOCAL_PLAYBOOK_RELATIVE_PATH}"
 
                 # Create a local inventory file targeting 'localhost'
                 echo "[localhost]" > inventory.ini

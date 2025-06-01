@@ -374,7 +374,7 @@ spec:
               # --- AND Directly assign the heredoc to SSM_COMMANDS ---
               SSM_COMMANDS=$(cat << EOF_SSM_COMMANDS
                 #!/bin/bash
-                set -eu
+                set -e
                 set -x # Enable debugging within the SSM script
 
                 echo "Installing Ansible and Git..."
@@ -382,14 +382,14 @@ spec:
                 sudo yum install -y ansible git
                 
                 echo "Cloning repository: ${LOCAL_GIT_REPO_URL} branch: ${LOCAL_GIT_BRANCH}"
-                \$REPO_DIR="/tmp/app_repo"
-                if [ -d "\${REPO_DIR}" ]; then
-                  sudo rm -rf "\${REPO_DIR}"
+                REPO_DIR="/tmp/app_repo"
+                if [ -d "${REPO_DIR}" ]; then
+                  sudo rm -rf "${REPO_DIR}"
                 fi
-                git clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "\${REPO_DIR}"
+                git clone --depth=1 --branch="${LOCAL_GIT_BRANCH}" "${LOCAL_GIT_REPO_URL}" "${REPO_DIR}"
 
                 # Navigate to the playbook directory
-                cd "\${REPO_DIR}/${LOCAL_CONTENT_BASE_PATH}/${LOCAL_PLAYBOOK_RELATIVE_PATH}"
+                cd "${REPO_DIR}/${LOCAL_CONTENT_BASE_PATH}/${LOCAL_PLAYBOOK_RELATIVE_PATH}"
 
                 # Create a local inventory file targeting 'localhost'
                 echo "[localhost]" > inventory.ini

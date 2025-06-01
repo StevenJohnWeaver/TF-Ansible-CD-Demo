@@ -9,19 +9,25 @@
     app_name: my_web_app # A friendly name for your application process in pm2
 
   tasks:
-    - name: Update apt cache
-      ansible.builtin.apt:
+    - name: Update dnf cache
+      ansible.builtin.dnf:
         update_cache: yes
-      when: ansible_os_family == "Debian" # Ensures this task only runs on Debian-based systems
+      when: ansible_os_family == "RedHat" # Amazon Linux falls under RedHat os_family
 
-    - name: Install Node.js and npm
-      ansible.builtin.apt:
+    - name: Enable Node.js module stream (e.g., nodejs:20 for LTS)
+      ansible.builtin.command: dnf module enable -y nodejs:20 # You can choose a different version like nodejs:18
+      args:
+        creates: /etc/dnf/modules.d/nodejs.module # This prevents running the command if already enabled
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Node.js and npm via dnf
+      ansible.builtin.dnf:
         name: "{{ item }}"
         state: present
       loop:
         - nodejs
         - npm
-      when: ansible_os_family == "Debian"
+      when: ansible_os_family == "RedHat"
 
     - name: Install pm2 globally
       # Using npm module to install pm2 globally.
@@ -42,7 +48,7 @@
 
     - name: Copy app.js to the application directory
       ansible.builtin.copy:
-        src: ./app.js # Source path on your local machine/pipeline runner
+        src: ./app_code/app.js # Source path on your local machine/pipeline runner
         dest: "{{ app_dir }}/app.js" # Destination path on the EC2 instance
         owner: ec2-user
         group: ec2-user
@@ -50,7 +56,7 @@
 
     - name: Copy package.json to the application directory
       ansible.builtin.copy:
-        src: ./package.json # Source path on your local machine/pipeline runner
+        src: ./app_code/package.json # Source path on your local machine/pipeline runner
         dest: "{{ app_dir }}/package.json" # Destination path on the EC2 instance
         owner: ec2-user
         group: ec2-user

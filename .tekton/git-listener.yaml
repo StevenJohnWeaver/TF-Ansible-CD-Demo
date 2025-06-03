@@ -2,13 +2,7 @@ apiVersion: tekton.dev/v1beta1
 kind: EventListener
 metadata:
   name: git-event-listener
-  # Optional: Add labels for organization
-  # labels:
-  #   app: web-app-demo
 spec:
-  # The service account that the EventListener will use to create PipelineRuns.
-  # Ensure this service account has permissions to create pipelineruns.
-  # In IBM Cloud CD, 'pipeline' is often the default, or you can specify your own.
   serviceAccountName: pipeline 
   triggers:
     - name: git-push-trigger # A unique name for this specific trigger within the EventListener

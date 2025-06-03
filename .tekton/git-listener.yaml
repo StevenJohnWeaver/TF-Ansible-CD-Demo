@@ -10,24 +10,11 @@ spec:
         - ref: git-push-binding # References the TriggerBinding defined above
       template:
         ref: git-pipeline-trigger-template # References the TriggerTemplate defined above
-      
-      # Optional: Interceptors help filter events and validate payloads for specific Git providers.
-      # You would typically enable one of these based on your Git provider.
-      # For example, for GitHub, it ensures only 'push' events are processed and validates the signature.
-      interceptors:
-        # Example for GitHub (uncomment if using GitHub)
-        # - github:
-        #     eventTypes: ["push"] # Only trigger on push events
-        #     secretRef:
-        #       secretName: github-webhook-secret # A Kubernetes Secret containing your GitHub webhook secret
-        #       secretKey: secretToken # The key within the secret that holds the token
-        
-        # Example for GitLab (uncomment if using GitLab)
-        # - gitlab:
-        #     eventTypes: ["Push Hook"]
-        #     secretRef:
-        #       secretName: gitlab-webhook-secret # A Kubernetes Secret containing your GitLab webhook secret
-        #       secretKey: secretToken
 
-        # For other Git providers, you might need different interceptors or none if relying solely
-        # on the generic webhook. Consult Tekton Triggers documentation for your specific provider.
+      interceptors:
+        Example for GitHub (uncomment if using GitHub)
+        - github:
+            eventTypes: ["push"] # Only trigger on push events
+            secretRef:
+              secretName: github-webhook-secret # A Kubernetes Secret containing your GitHub webhook secret
+              secretKey: secretToken # The key within the secret that holds the token

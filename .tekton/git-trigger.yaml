@@ -1,0 +1,89 @@
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: git-pipeline-trigger-template
+  # Optional: Add labels for organization
+  # labels:
+  #   app: web-app-demo
+spec:
+  params:
+    # These parameters are extracted by the TriggerBinding from the Git webhook payload
+    - name: git-repo-url
+      description: The URL of the Git repository.
+    - name: git-branch
+      description: The Git branch that was pushed.
+
+    # These parameters are required by your ibm-cloud-web-app-pipeline
+    # but are NOT provided by the Git webhook payload itself.
+    # In IBM Cloud Continuous Delivery, you will need to configure these
+    # as environment properties or secrets when setting up the Git listener
+    # that uses this TriggerTemplate.
+    - name: content-base-path
+      description: Base subdirectory within the cloned repository (e.g., "my-project/deploy").
+      default: "" # Matches the default in your pipeline.yaml
+
+    # HashiCorp Cloud Platform (HCP) / Terraform Cloud Parameters
+    - name: hcp-tfe-token
+      description: HashiCorp Cloud Platform Terraform API Token. (Marked as secret in pipeline)
+    - name: hcp-org-name
+      description: HashiCorp Cloud Platform Organization Name.
+    - name: hcp-workspace-name
+      description: HashiCorp Cloud Platform Workspace Name.
+
+    # AWS Parameters
+    - name: ssh-private-key
+      description: Private SSH key to access the provisioned EC2 instance. (Marked as secret in pipeline)
+    - name: aws-region
+      description: The AWS region where the EC2 instance is deployed.
+    - name: aws-access-key-id
+      description: Your AWS Access Key ID for authentication. (Marked as secret in pipeline)
+    - name: aws-secret-access-key
+      description: Your AWS Secret Access Key for authentication. (Marked as secret in pipeline)
+
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        # generateName creates a unique name for each PipelineRun (e.g., web-app-pipeline-run-abcde)
+        generateName: web-app-pipeline-run-
+        # Optional: Add labels to the PipelineRun for easier filtering/monitoring
+        labels:
+          tekton.dev/pipeline: ibm-cloud-web-app-pipeline
+          trigger: git-push
+      spec:
+        # Reference your existing pipeline
+        pipelineRef:
+          name: ibm-cloud-web-app-pipeline
+        
+        # Map the parameters from the TriggerTemplate to the Pipeline
+        params:
+          - name: git-repo-url
+            value: $(params.git-repo-url)
+          - name: git-branch
+            # Tekton's string replacement to get just the branch name from "refs/heads/main"
+            value: $(params.git-branch.replace('refs/heads/', ''))
+          - name: content-base-path
+            value: $(params.content-base-path)
+          - name: hcp-tfe-token
+            value: $(params.hcp-tfe-token)
+          - name: hcp-org-name
+            value: $(params.hcp-org-name)
+          - name: hcp-workspace-name
+            value: $(params.hcp-workspace-name)
+          - name: ssh-private-key
+            value: $(params.ssh-private-key)
+          - name: aws-region
+            value: $(params.aws-region)
+          - name: aws-access-key-id
+            value: $(params.aws-access-key-id)
+          - name: aws-secret-access-key
+            value: $(params.aws-secret-access-key)
+        
+        # Define the workspace for the PipelineRun.
+        # This should match the workspace defined in your pipeline.yaml and be backed by a PVC.
+        workspaces:
+          - name: pipeline-workspace
+            # Replace 'your-pipeline-pvc' with the actual name of your PersistentVolumeClaim
+            # that your Tekton pipelines use for their workspace.
+            persistentVolumeClaim:
+              claimName: your-pipeline-pvc # <-- IMPORTANT: Update this to your PVC name

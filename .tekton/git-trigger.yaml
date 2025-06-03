@@ -2,9 +2,7 @@ apiVersion: tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
   name: git-pipeline-trigger-template
-  # Optional: Add labels for organization
-  # labels:
-  #   app: web-app-demo
+
 spec:
   params:
     # These parameters are extracted by the TriggerBinding from the Git webhook payload
@@ -14,10 +12,6 @@ spec:
       description: The Git branch that was pushed.
 
     # These parameters are required by your ibm-cloud-web-app-pipeline
-    # but are NOT provided by the Git webhook payload itself.
-    # In IBM Cloud Continuous Delivery, you will need to configure these
-    # as environment properties or secrets when setting up the Git listener
-    # that uses this TriggerTemplate.
     - name: content-base-path
       description: Base subdirectory within the cloned repository (e.g., "my-project/deploy").
       default: "" # Matches the default in your pipeline.yaml

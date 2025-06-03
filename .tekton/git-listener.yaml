@@ -12,7 +12,7 @@ spec:
         ref: git-pipeline-trigger-template # References the TriggerTemplate defined above
 
       interceptors:
-        Example for GitHub (uncomment if using GitHub)
+      #  Example for GitHub (uncomment if using GitHub)
         - github:
             eventTypes: ["push"] # Only trigger on push events
             secretRef:

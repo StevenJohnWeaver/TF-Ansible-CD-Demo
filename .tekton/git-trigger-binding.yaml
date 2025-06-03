@@ -2,13 +2,10 @@ apiVersion: tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
   name: git-push-binding
-  # Optional: You can add labels if needed for organization
-  # labels:
-  #   app: web-app-demo
+
 spec:
   params:
     # Extracts the full Git repository URL from the webhook payload.
-    # This works for most Git providers (GitHub, GitLab, Bitbucket).
     - name: git-repo-url
       value: $(body.repository.url)
     
@@ -16,9 +13,3 @@ spec:
     # The TriggerTemplate will later parse this to get just the branch name.
     - name: git-branch
       value: $(body.ref)
-    
-    # Optional: If you want to include other information from the Git push
-    # - name: git-commit-sha
-    #   value: $(body.after) # The SHA of the new commit
-    # - name: git-commit-message
-    #   value: $(body.head_commit.message) # The commit message

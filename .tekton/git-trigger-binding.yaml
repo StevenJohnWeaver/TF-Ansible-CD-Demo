@@ -1,27 +1,4 @@
-# apiVersion: tekton.dev/v1beta1
-# kind: TriggerBinding
-# metadata:
-#   name: git-push-binding
-
-# spec:
-#   params:
-    # Extracts the full Git repository URL from the webhook payload.
-#     - name: git-repo-url
-#       value: $(body.repository.url)
-    
-    # Extracts the Git reference (e.g., "refs/heads/main", "refs/tags/v1.0.0").
-    # The TriggerTemplate will later parse this to get just the branch name.
-#     - name: git-branch
-#       value: $(body.ref)
-
 apiVersion: tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
   name: git-push-binding
-#spec:
-#  params:
-#    - name: pipeline_git_repo_url
-#      value: "$(event.repository.url)"
-#    - name: pipeline_git_branch
-#      value: "$(event.ref)"
-

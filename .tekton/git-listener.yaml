@@ -2,23 +2,6 @@ apiVersion: tekton.dev/v1beta1
 kind: EventListener
 metadata:
   name: git-event-listener
-#spec:
-#  serviceAccountName: pipeline 
-#  triggers:
-#    - name: git-push-trigger # A unique name for this specific trigger within the EventListener
-#      bindings:
-#        - ref: git-push-binding # References the TriggerBinding defined above
-#      template:
-#        ref: git-pipeline-trigger-template # References the TriggerTemplate defined above
-
-#      interceptors:
-      #  Example for GitHub (uncomment if using GitHub)
-#        - github:
-#            eventTypes: ["push"] # Only trigger on push events
-#            secretRef:
-#              secretName: github-webhook-secret # A Kubernetes Secret containing your GitHub webhook secret
-#              secretKey: secretToken # The key within the secret that holds the token
-
 spec:
   triggers:
     - binding:

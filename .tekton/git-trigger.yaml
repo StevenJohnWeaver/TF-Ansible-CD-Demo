@@ -66,7 +66,7 @@ spec:
             value: $(params.pipeline_git_repo_url)
           - name: git-branch
             # Tekton's string replacement to get just the branch name from "refs/heads/main"
-            value: $(params.pipeline_git_branch.replace('refs/heads/', ''))
+            value: $(params.pipeline_git_branch)
           - name: content-base-path
             value: $(params.pipeline_content_base_path)
           - name: hcp-tfe-token

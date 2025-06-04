@@ -79,6 +79,15 @@ resource "aws_security_group" "web_app_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Inbound Rule: Allow HTTP (Port 8080) from anywhere
+  ingress {
+    description = "Allow HTTP inbound"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Inbound Rule: Allow SSH (Port 22) from anywhere (CAUTION: highly insecure for production!)
   ingress {
     description = "Allow SSH inbound"

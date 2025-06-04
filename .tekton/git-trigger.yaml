@@ -6,32 +6,32 @@ metadata:
 spec:
   params:
     # These parameters are extracted by the TriggerBinding from the Git webhook payload
-    - name: git-repo-url
+    - name: pipeline_git_repo_url
       description: The URL of the Git repository.
-    - name: git-branch
+    - name: pipeline_git_branch
       description: The Git branch that was pushed.
 
     # These parameters are required by your ibm-cloud-web-app-pipeline
-    - name: content-base-path
+    - name: pipeline_content_base_path
       description: Base subdirectory within the cloned repository (e.g., "my-project/deploy").
       default: "" # Matches the default in your pipeline.yaml
 
     # HashiCorp Cloud Platform (HCP) / Terraform Cloud Parameters
-    - name: hcp-tfe-token
+    - name: pipeline_hcp_tfe_token
       description: HashiCorp Cloud Platform Terraform API Token. (Marked as secret in pipeline)
-    - name: hcp-org-name
+    - name: pipeline_hcp_org_name
       description: HashiCorp Cloud Platform Organization Name.
-    - name: hcp-workspace-name
+    - name: pipeline_hcp_workspace_name
       description: HashiCorp Cloud Platform Workspace Name.
 
     # AWS Parameters
-    - name: ssh-private-key
+    - name: pipeline_ssh_private_key
       description: Private SSH key to access the provisioned EC2 instance. (Marked as secret in pipeline)
-    - name: aws-region
+    - name: pipeline_aws_region
       description: The AWS region where the EC2 instance is deployed.
-    - name: aws-access-key-id
+    - name: pipeline_aws_access_key_id
       description: Your AWS Access Key ID for authentication. (Marked as secret in pipeline)
-    - name: aws-secret-access-key
+    - name: pipeline_aws_secret_access_key
       description: Your AWS Secret Access Key for authentication. (Marked as secret in pipeline)
 
   resourcetemplates:
@@ -52,26 +52,26 @@ spec:
         # Map the parameters from the TriggerTemplate to the Pipeline
         params:
           - name: git-repo-url
-            value: $(params.git-repo-url)
+            value: $(params.pipeline_git_repo_url)
           - name: git-branch
             # Tekton's string replacement to get just the branch name from "refs/heads/main"
-            value: $(params.git-branch.replace('refs/heads/', ''))
+            value: $(params.pipeline_git_branch.replace('refs/heads/', ''))
           - name: content-base-path
-            value: $(params.content-base-path)
+            value: $(params.pipeline_content_base_path)
           - name: hcp-tfe-token
-            value: $(params.hcp-tfe-token)
+            value: $(params.pipeline_hcp_tfe_token)
           - name: hcp-org-name
-            value: $(params.hcp-org-name)
+            value: $(params.pipeline_hcp_org_name)
           - name: hcp-workspace-name
-            value: $(params.hcp-workspace-name)
+            value: $(params.pipeline_hcp_workspace_name)
           - name: ssh-private-key
-            value: $(params.ssh-private-key)
+            value: $(params.pipeline_ssh_private_key)
           - name: aws-region
-            value: $(params.aws-region)
+            value: $(params.pipeline_aws_region)
           - name: aws-access-key-id
-            value: $(params.aws-access-key-id)
+            value: $(params.pipeline_aws_access_key_id)
           - name: aws-secret-access-key
-            value: $(params.aws-secret-access-key)
+            value: $(params.pipeline_aws_secret_access_key)
         
         # Define the workspace for the PipelineRun.
         # This should match the workspace defined in your pipeline.yaml and be backed by a PVC.

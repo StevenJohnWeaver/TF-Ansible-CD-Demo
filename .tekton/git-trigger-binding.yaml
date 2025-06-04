@@ -18,10 +18,10 @@ apiVersion: tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
   name: git-push-binding
-spec:
-  params:
-    - name: pipeline_git_repo_url
-      value: "$(event.repository.url)"
-    - name: pipeline_git_branch
-      value: "$(event.ref)"
+#spec:
+#  params:
+#    - name: pipeline_git_repo_url
+#      value: "$(event.repository.url)"
+#    - name: pipeline_git_branch
+#      value: "$(event.ref)"
 

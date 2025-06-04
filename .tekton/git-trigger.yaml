@@ -35,6 +35,17 @@ spec:
       description: Your AWS Secret Access Key for authentication. (Marked as secret in pipeline)
 
   resourcetemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: pipelinerun-$(uid)-pvc
+      spec:
+        resources:
+          requests:
+            storage: 5Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteOnce
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
       metadata:
@@ -80,4 +91,4 @@ spec:
             # Replace 'your-pipeline-pvc' with the actual name of your PersistentVolumeClaim
             # that your Tekton pipelines use for their workspace.
             persistentVolumeClaim:
-              claimName: your-pipeline-pvc # <-- IMPORTANT: Update this to your PVC name
+              claimName: pipelinerun-$(uid)-pvc # <-- IMPORTANT: Update this to your PVC name

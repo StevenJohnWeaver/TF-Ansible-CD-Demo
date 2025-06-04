@@ -10,7 +10,7 @@ const server = http.createServer((req, res) => {
   res.setHeader('Content-Type', 'text/plain'); // Indicate plain text content
 
   // Send the response body "Hello World"
-  res.end('Hello from our Node.js Web App deployed with Terraform, Ansible, and IBM Cloud CD!\n');
+  res.end('Hello from our Node.js Web App deployed with HCP Terraform, Ansible, and IBM Cloud CD!\n');
 });
 
 // The server listens on specified port and IP address (0.0.0.0 for all available interfaces)

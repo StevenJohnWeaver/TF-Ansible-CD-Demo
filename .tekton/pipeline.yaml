@@ -267,7 +267,6 @@ spec:
               # Now exit successfully after all steps are complete
               exit 0 # Success!
 
-    # 3. Task to deploy application with Ansible
 # 3. Task to deploy application with Ansible
     - name: deploy-application
       runAfter: ["provision-infrastructure"]
